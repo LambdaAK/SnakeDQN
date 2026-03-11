@@ -3,19 +3,7 @@
 import numpy as np
 from snake_game import SnakeGame
 from dqn_agent import DQNAgent
-
-# Terminal colors for pretty output
-class Colors:
-    RED = '\033[91m'
-    GREEN = '\033[92m'
-    YELLOW = '\033[93m'
-    BLUE = '\033[94m'
-    MAGENTA = '\033[95m'
-    CYAN = '\033[96m'
-    WHITE = '\033[97m'
-    BOLD = '\033[1m'
-    RESET = '\033[0m'
-    UNDERLINE = '\033[4m'
+from colors import Colors
 
 def print_test_header():
     """Print a pretty header for the test session"""
@@ -166,10 +154,6 @@ def test_pathfinding():
           f"down: {Colors.CYAN}{path_quality_down:.2f}{Colors.RESET}, "
           f"left: {Colors.CYAN}{path_quality_left:.2f}{Colors.RESET}, "
           f"right: {Colors.CYAN}{path_quality_right:.2f}{Colors.RESET}")
-    
-    # Test path reward calculation
-    path_reward = game._calculate_path_reward()
-    print(f"Path reward: {Colors.GREEN}{path_reward:.2f}{Colors.RESET}")
     
     print_success("Pathfinding test passed!")
 

@@ -3,19 +3,7 @@
 import os
 import glob
 import time
-
-# Terminal colors for pretty output
-class Colors:
-    RED = '\033[91m'
-    GREEN = '\033[92m'
-    YELLOW = '\033[93m'
-    BLUE = '\033[94m'
-    MAGENTA = '\033[95m'
-    CYAN = '\033[96m'
-    WHITE = '\033[97m'
-    BOLD = '\033[1m'
-    RESET = '\033[0m'
-    UNDERLINE = '\033[4m'
+from colors import Colors
 
 def print_header():
     """Print a pretty header"""
@@ -44,30 +32,31 @@ def monitor_training():
     # Check if agents directory exists
     if not os.path.exists("agents"):
         print(f"{Colors.RED}No agents directory found!{Colors.RESET}")
-        print(f"{Colors.YELLOW}Start training first with: python dqn_agent.py{Colors.RESET}")
+        print(f"{Colors.YELLOW}Start training first with: python train.py{Colors.RESET}")
         return
     
-    # Get all model files
-    model_files = glob.glob("agents/snake_dqn_episode_*.pth")
+    dqn_files = glob.glob("agents/snake_dqn_episode_*.pth")
+    reinforce_files = glob.glob("agents/snake_reinforce_episode_*.pth")
+    model_files = dqn_files + reinforce_files
     
     if not model_files:
         print(f"{Colors.YELLOW}No saved models found yet.{Colors.RESET}")
-        print(f"{Colors.CYAN}Training should create models every 1000 episodes.{Colors.RESET}")
+        print(f"{Colors.CYAN}Training should create models every 100 episodes.{Colors.RESET}")
         return
     
-    # Sort by episode number
     model_files.sort(key=lambda x: int(x.split('_')[-1].split('.')[0]))
     
-    print(f"{Colors.CYAN}Found {len(model_files)} saved models:{Colors.RESET}")
+    print(f"{Colors.CYAN}Found {len(model_files)} saved models "
+          f"({len(dqn_files)} DQN, {len(reinforce_files)} REINFORCE):{Colors.RESET}")
     print()
     
-    # Show latest models
-    latest_models = model_files[-5:]  # Show last 5 models
+    latest_models = model_files[-5:]
     for i, model_file in enumerate(latest_models):
         episode = int(model_file.split('_')[-1].split('.')[0])
-        file_size = os.path.getsize(model_file) / 1024  # Size in KB
+        file_size = os.path.getsize(model_file) / 1024
+        agent_type = "REINFORCE" if "reinforce" in model_file else "DQN"
+        type_color = Colors.MAGENTA if agent_type == "REINFORCE" else Colors.CYAN
         
-        # Color code based on episode number
         if episode > 5000:
             episode_color = Colors.GREEN
         elif episode > 2000:
@@ -75,7 +64,8 @@ def monitor_training():
         else:
             episode_color = Colors.RED
         
-        print(f"{Colors.YELLOW}{i+1:2d}.{Colors.RESET} Episode {episode_color}{episode:6d}{Colors.RESET} | "
+        print(f"{Colors.YELLOW}{i+1:2d}.{Colors.RESET} {type_color}[{agent_type:>9s}]{Colors.RESET} "
+              f"Episode {episode_color}{episode:6d}{Colors.RESET} | "
               f"Size: {Colors.MAGENTA}{file_size:.1f} KB{Colors.RESET}")
     
     # Show latest model info

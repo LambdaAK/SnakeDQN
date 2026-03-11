@@ -10,19 +10,7 @@ import os
 from collections import deque
 from typing import List, Tuple, Optional
 from snake_game import SnakeGame
-
-# Terminal colors for pretty output
-class Colors:
-    RED = '\033[91m'
-    GREEN = '\033[92m'
-    YELLOW = '\033[93m'
-    BLUE = '\033[94m'
-    MAGENTA = '\033[95m'
-    CYAN = '\033[96m'
-    WHITE = '\033[97m'
-    BOLD = '\033[1m'
-    RESET = '\033[0m'
-    UNDERLINE = '\033[4m'
+from colors import Colors
 
 def print_header():
     """Print a pretty header for the training session"""
@@ -139,7 +127,6 @@ class DQNAgent:
         self.epsilon_min = 0.0001
         self.epsilon_decay = 0.99995  # Slower decay
         self.batch_size = 64  # Larger batch size
-        self.target_update_freq = 100
         
         # Training stats
         self.episode_count = 0

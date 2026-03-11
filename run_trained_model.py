@@ -2,23 +2,13 @@
 
 import os
 import glob
+import time
 import torch
 import numpy as np
 from snake_game import SnakeGame
 from dqn_agent import DQNAgent
-
-# Terminal colors for pretty output
-class Colors:
-    RED = '\033[91m'
-    GREEN = '\033[92m'
-    YELLOW = '\033[93m'
-    BLUE = '\033[94m'
-    MAGENTA = '\033[95m'
-    CYAN = '\033[96m'
-    WHITE = '\033[97m'
-    BOLD = '\033[1m'
-    RESET = '\033[0m'
-    UNDERLINE = '\033[4m'
+from reinforce_agent import REINFORCEAgent
+from colors import Colors
 
 def print_header():
     """Print a pretty header"""
@@ -44,20 +34,23 @@ def get_user_input():
     """Get user input with colored prompts"""
     print_header()
     
-    # Get available models
-    model_files = glob.glob("agents/snake_dqn_episode_*.pth")
+    # Get available models (both DQN and REINFORCE)
+    dqn_files = glob.glob("agents/snake_dqn_episode_*.pth")
+    reinforce_files = glob.glob("agents/snake_reinforce_episode_*.pth")
+    model_files = dqn_files + reinforce_files
     if not model_files:
         print(f"{Colors.RED}No saved models found in agents/ directory!{Colors.RESET}")
-        print(f"{Colors.YELLOW}Please train a model first using: python dqn_agent.py{Colors.RESET}")
+        print(f"{Colors.YELLOW}Please train a model first using: python train.py{Colors.RESET}")
         return None, None, None, None
     
-    # Sort by episode number
     model_files.sort(key=lambda x: int(x.split('_')[-1].split('.')[0]))
     
     print(f"{Colors.CYAN}Available models:{Colors.RESET}")
     for i, model_file in enumerate(model_files):
         episode = model_file.split('_')[-1].split('.')[0]
-        print(f"{Colors.YELLOW}{i+1:2d}.{Colors.RESET} Episode {Colors.CYAN}{episode}{Colors.RESET}")
+        agent_type = "REINFORCE" if "reinforce" in model_file else "DQN"
+        type_color = Colors.MAGENTA if agent_type == "REINFORCE" else Colors.CYAN
+        print(f"{Colors.YELLOW}{i+1:2d}.{Colors.RESET} {type_color}[{agent_type}]{Colors.RESET} Episode {Colors.CYAN}{episode}{Colors.RESET}")
     
     # Get model selection
     while True:
@@ -129,20 +122,21 @@ def run_model(model_path: str, run_mode: str, episodes: int, delay: float):
     """Run the trained model"""
     print(f"\n{Colors.CYAN}Loading model: {Colors.BOLD}{model_path}{Colors.RESET}")
     
-    # Initialize environment and agent
     env = SnakeGame()
-    agent = DQNAgent()
-    
-    # Load the model
+    is_reinforce = "reinforce" in model_path
+
     try:
-        agent.load_model(model_path)
+        if is_reinforce:
+            agent = REINFORCEAgent()
+            agent.load_model(model_path)
+        else:
+            agent = DQNAgent()
+            agent.load_model(model_path)
+            agent.epsilon = 0.0
         print_success("Model loaded successfully!")
     except Exception as e:
         print(f"{Colors.RED}Error loading model: {e}{Colors.RESET}")
         return
-    
-    # Set epsilon to 0 for evaluation (no exploration)
-    agent.epsilon = 0.0
     
     print(f"\n{Colors.CYAN}Running {episodes} episodes in {run_mode} mode...{Colors.RESET}")
     print(f"{Colors.YELLOW}Press Ctrl+C to stop{Colors.RESET}\n")
@@ -160,8 +154,7 @@ def run_model(model_path: str, run_mode: str, episodes: int, delay: float):
             print(f"{Colors.BLUE}Episode {episode + 1}/{episodes}{Colors.RESET}")
             
             while steps < 10000:  # No step limit during evaluation
-                # Choose action (no exploration)
-                action = agent.act(state)
+                action = agent.act(state, deterministic=True) if is_reinforce else agent.act(state)
                 
                 # Take action
                 next_state, reward, done, info = env.step(action)
@@ -174,7 +167,6 @@ def run_model(model_path: str, run_mode: str, episodes: int, delay: float):
                 # Visualize if in visual mode
                 if run_mode == "visual":
                     env._render()
-                    import time
                     time.sleep(delay)
                 
                 if done:

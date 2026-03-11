@@ -9,27 +9,7 @@ import heapq
 import numpy as np
 from enum import Enum
 from typing import List, Tuple, Optional, Dict, Any
-
-class Colors:
-    RED = '\033[91m'
-    GREEN = '\033[92m'
-    YELLOW = '\033[93m'
-    BLUE = '\033[94m'
-    MAGENTA = '\033[95m'
-    CYAN = '\033[96m'
-    WHITE = '\033[97m'
-    BOLD = '\033[1m'
-    RESET = '\033[0m'
-    
-    # Rainbow colors for snake gradient
-    RAINBOW_COLORS = [
-        '\033[91m',  # Red
-        '\033[93m',  # Yellow  
-        '\033[92m',  # Green
-        '\033[96m',  # Cyan
-        '\033[94m',  # Blue
-        '\033[95m',  # Magenta
-    ]
+from colors import Colors
 
 class Direction(Enum):
     UP = (-1, 0)
@@ -268,118 +248,20 @@ class SnakeGame:
         return new_state, reward, done, info
     
     def _calculate_reward(self, old_distance: int, food_eaten: bool) -> float:
-        """Calculate reward based on the balanced reward function with spatial awareness"""
-        reward = 0.0
-        
-        # Small positive reward per step survived (encourages longer games)
-        reward += 0.1
-        
-        # Direction change penalty (encourages straighter paths and reduces erratic movement)
-        if self.direction != self.previous_direction:
-            reward -= 0.2  # Penalty for changing direction
-        
-        # Food proximity reward (small positive for moving closer)
-        new_distance = abs(self.snake[0][0] - self.food[0]) + abs(self.snake[0][1] - self.food[1])
-        distance_change = old_distance - new_distance
-        
-        if distance_change > 0:
-            reward += 0.5  # Small reward for moving closer to food
-        elif distance_change < 0:
-            reward -= 0.2  # Small penalty for moving away from food
-        
-        # Food consumption reward (main objective) with efficiency bonus
-        if food_eaten:
-            # Base reward for eating food
-            reward += 10.0
-            
-            # Efficiency bonus - reward for quick food collection
-            efficiency_bonus = max(0, 20 - self.steps_since_last_food) / 20.0
-            reward += efficiency_bonus * 2.0
-            
-            # Snake length scaling - more reward when longer (harder to survive)
-            length_factor = len(self.snake) / 20.0
-            reward += 5.0 * length_factor
-        
-        # Penalty for taking too long to get food
-        if self.steps_since_last_food > 50:
-            reward -= 0.5
-        
-        # Death penalty
+        """Calculate reward with clear, non-overlapping signals."""
         if self.game_over:
-            reward -= 10.0  # Large penalty for dying
-        
-        # Pathfinding-based rewards (new feature)
-        path_reward = self._calculate_path_reward()
-        reward += path_reward
-        
-        # Territory control rewards
-        territory_reward = self._calculate_territory_reward()
-        reward += territory_reward
-        
-        # Strategic positioning rewards
-        strategic_reward = self._calculate_strategic_reward()
-        reward += strategic_reward
-        
-        # Adaptive difficulty rewards
-        adaptive_reward = self._calculate_adaptive_reward(food_eaten)
-        reward += adaptive_reward
-        
-        # Spatial awareness penalties and rewards (reduced severity)
-        head = self.snake[0]
-        
-        # Penalty for dangerous situations (reduced escape routes) - less severe
-        safe_moves = self._count_safe_moves()
-        if safe_moves < 0.25:  # Only 1 safe move (very dangerous)
-            reward -= 1.0
-        elif safe_moves < 0.5:  # Less than 2 safe moves
-            reward -= 0.3
-        
-        # Penalty for getting too close to walls/body - less severe
-        min_body_distance = min(
-            self._get_body_distance('up'),
-            self._get_body_distance('down'),
-            self._get_body_distance('left'),
-            self._get_body_distance('right')
-        )
-        
-        if min_body_distance < 0.1:  # Very close to body
-            reward -= 0.5
-        elif min_body_distance < 0.3:  # Moderately close to body
-            reward -= 0.1
-        
-        # Penalty for moving into dead ends - less severe
-        dead_end_penalty = 0
-        if self._is_dead_end_in_direction('up'):
-            dead_end_penalty += 0.3
-        if self._is_dead_end_in_direction('down'):
-            dead_end_penalty += 0.3
-        if self._is_dead_end_in_direction('left'):
-            dead_end_penalty += 0.3
-        if self._is_dead_end_in_direction('right'):
-            dead_end_penalty += 0.3
-        
-        reward -= dead_end_penalty
-        
-        # Bonus for maintaining access to large open areas
-        total_available_space = (
-            self._get_available_space(head, 'up') +
-            self._get_available_space(head, 'down') +
-            self._get_available_space(head, 'left') +
-            self._get_available_space(head, 'right')
-        )
-        
-        if total_available_space > 3.0:  # Lots of open space
-            reward += 0.2
-        elif total_available_space < 0.5:  # Very cramped
-            reward -= 0.3
-        
-        # Reward for efficient paths to food (bonus for maintaining good distance from obstacles)
-        if not food_eaten and distance_change > 0:  # Moving closer to food
-            # Bonus if we're moving closer while maintaining good spatial awareness
-            if safe_moves > 0.5 and min_body_distance > 0.3:
-                reward += 0.1
-        
-        return reward
+            return -10.0
+
+        if food_eaten:
+            return 10.0
+
+        new_distance = abs(self.snake[0][0] - self.food[0]) + abs(self.snake[0][1] - self.food[1])
+        if new_distance < old_distance:
+            return 0.3
+        elif new_distance > old_distance:
+            return -0.3
+
+        return 0.0
     
     def _clear_screen(self):
         os.system('clear' if os.name == 'posix' else 'cls')
@@ -834,102 +716,6 @@ class SnakeGame:
         quality_score = (length_score * 0.4 + space_score * 0.4 + wall_score * 0.2)
         
         return quality_score
-
-    def _calculate_path_reward(self) -> float:
-        """Calculate a reward based on the quality of the current path to food."""
-        head = self.snake[0]
-        
-        # Find the current path to food
-        path_to_food = self._a_star_pathfinding(head, self.food)
-        
-        if path_to_food is None:
-            return -1.0  # Large penalty if no path to food
-        
-        # Calculate path quality based on:
-        # 1. Path length (shorter is better)
-        # 2. Available space along the path
-        # 3. Distance from walls
-        
-        path_length = len(path_to_food)
-        max_path_length = self.width + self.height  # Theoretical maximum
-        
-        # Normalize path length (shorter is better)
-        length_score = 1.0 - (path_length / max_path_length)
-        
-        # Calculate space along the path
-        space_score = 0.0
-        for pos in path_to_food[:min(5, len(path_to_food))]:  # Check first 5 positions
-            # Count free cells around this position
-            free_cells = 0
-            for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-                check_pos = (pos[0] + dr, pos[1] + dc)
-                if (check_pos[0] >= 0 and check_pos[0] < self.height and 
-                    check_pos[1] >= 0 and check_pos[1] < self.width and
-                    check_pos not in self.snake):
-                    free_cells += 1
-            space_score += free_cells / 4.0  # Normalize by max possible free cells
-        
-        space_score /= min(5, len(path_to_food))  # Average space score
-        
-        # Calculate wall distance score
-        wall_distance = min(
-            head[0],  # Distance to top wall
-            self.height - 1 - head[0],  # Distance to bottom wall
-            head[1],  # Distance to left wall
-            self.width - 1 - head[1]  # Distance to right wall
-        )
-        wall_score = wall_distance / max(self.width, self.height)
-        
-        # Combine scores (weighted average)
-        quality_score = (length_score * 0.4 + space_score * 0.4 + wall_score * 0.2)
-        
-        return quality_score
-
-    def _calculate_territory_reward(self) -> float:
-        """Calculate reward for maintaining control of board areas"""
-        head = self.snake[0]
-        accessible_cells = self._count_accessible_cells(head)
-        territory_ratio = accessible_cells / (self.width * self.height)
-        return territory_ratio * 0.5
-    
-    def _count_accessible_cells(self, start_pos: Tuple[int, int]) -> int:
-        """Count how many cells the snake can access from current position"""
-        visited = set()
-        queue = [start_pos]
-        visited.add(start_pos)
-        
-        while queue:
-            current = queue.pop(0)
-            for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-                next_pos = (current[0] + dr, current[1] + dc)
-                if (next_pos[0] >= 0 and next_pos[0] < self.height and
-                    next_pos[1] >= 0 and next_pos[1] < self.width and
-                    next_pos not in self.snake and
-                    next_pos not in visited):
-                    visited.add(next_pos)
-                    queue.append(next_pos)
-        
-        return len(visited)
-    
-    def _calculate_strategic_reward(self) -> float:
-        """Calculate reward for strategic positioning"""
-        head = self.snake[0]
-        # Reward for staying near the center when possible
-        center_distance = abs(head[0] - self.height//2) + abs(head[1] - self.width//2)
-        max_center_distance = (self.width + self.height) // 2
-        center_reward = max(0, max_center_distance - center_distance) / max_center_distance
-        return center_reward * 0.1
-    
-    def _calculate_adaptive_reward(self, food_eaten: bool) -> float:
-        """Calculate adaptive rewards based on game difficulty"""
-        difficulty = len(self.snake) / 10.0  # Higher difficulty with longer snake
-        
-        if food_eaten:
-            # More reward for eating food in harder situations
-            return 5.0 * difficulty
-        else:
-            # Small survival bonus that increases with difficulty
-            return 0.05 * difficulty
 
 def main():
     game = SnakeGame()
