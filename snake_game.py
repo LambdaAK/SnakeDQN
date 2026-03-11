@@ -174,41 +174,6 @@ class SnakeGame:
             return 1.0
         return 0.0
     
-    def _is_dangerous_2_steps(self, pos1: Tuple[int, int], pos2: Tuple[int, int]) -> float:
-        """Check if moving 2 steps in a direction is dangerous"""
-        # Check if first step is dangerous
-        if self._is_dangerous(pos1) > 0:
-            return 1.0
-        
-        # Check if second step is dangerous
-        if self._is_dangerous(pos2) > 0:
-            return 1.0
-        
-        return 0.0
-    
-    def _get_body_proximity(self, head: Tuple[int, int], direction: str) -> float:
-        """Get how close the nearest body segment is in a given direction"""
-        head_row, head_col = head
-        
-        if direction == 'up':
-            for row in range(head_row - 1, -1, -1):
-                if (row, head_col) in self.snake[1:]:  # Exclude head
-                    return (head_row - row) / 10.0  # Normalize
-        elif direction == 'down':
-            for row in range(head_row + 1, self.height):
-                if (row, head_col) in self.snake[1:]:
-                    return (row - head_row) / 10.0
-        elif direction == 'left':
-            for col in range(head_col - 1, -1, -1):
-                if (head_row, col) in self.snake[1:]:
-                    return (head_col - col) / 10.0
-        elif direction == 'right':
-            for col in range(head_col + 1, self.width):
-                if (head_row, col) in self.snake[1:]:
-                    return (col - head_col) / 10.0
-        
-        return 0.0  # No body segment found in this direction
-    
     def _get_available_space(self, head: Tuple[int, int], direction: str) -> float:
         """Get the number of free cells available in a given direction"""
         head_row, head_col = head
@@ -240,43 +205,6 @@ class SnakeGame:
                     break
         
         return free_cells / 10.0  # Normalize
-    
-    def _get_5x5_grid(self, head: Tuple[int, int]) -> np.ndarray:
-        """Get a 5x5 grid centered on the snake head"""
-        head_row, head_col = head
-        grid = np.zeros(25, dtype=np.float32)  # 5x5 = 25 elements
-        
-        # Define what each value represents:
-        # 0.0 = empty space
-        # 1.0 = wall
-        # 2.0 = snake body
-        # 3.0 = snake head
-        # 4.0 = food
-        
-        idx = 0
-        for row_offset in range(-2, 3):  # -2, -1, 0, 1, 2
-            for col_offset in range(-2, 3):  # -2, -1, 0, 1, 2
-                grid_row = head_row + row_offset
-                grid_col = head_col + col_offset
-                
-                # Check if position is within board bounds
-                if (grid_row < 0 or grid_row >= self.height or 
-                    grid_col < 0 or grid_col >= self.width):
-                    grid[idx] = 1.0  # Wall
-                else:
-                    pos = (grid_row, grid_col)
-                    if pos == head:
-                        grid[idx] = 3.0  # Snake head
-                    elif pos == self.food:
-                        grid[idx] = 4.0  # Food
-                    elif pos in self.snake[1:]:  # Exclude head
-                        grid[idx] = 2.0  # Snake body
-                    else:
-                        grid[idx] = 0.0  # Empty space
-                
-                idx += 1
-        
-        return grid
     
     def step(self, action: int) -> Tuple[np.ndarray, float, bool, Dict[str, Any]]:
         """Take a step in the game given an action"""
@@ -451,31 +379,6 @@ class SnakeGame:
                 reward += 0.1
         
         return reward
-    
-    def _is_near_body(self, head: Tuple[int, int]) -> bool:
-        """Check if head is adjacent to any body segment"""
-        for body_segment in self.snake[1:]:  # Exclude head
-            if abs(head[0] - body_segment[0]) + abs(head[1] - body_segment[1]) == 1:
-                return True
-        return False
-    
-    def _get_total_available_space(self, head: Tuple[int, int]) -> int:
-        """Get total available space around the head"""
-        total_space = 0
-        for direction in ['up', 'down', 'left', 'right']:
-            total_space += int(self._get_available_space(head, direction) * 10)
-        return total_space
-    
-    def _is_in_dead_end(self, head: Tuple[int, int]) -> bool:
-        """Check if the snake is in a dead end (only one safe direction)"""
-        safe_directions = 0
-        
-        # Check each direction
-        for direction in ['up', 'down', 'left', 'right']:
-            if self._get_available_space(head, direction) > 0:
-                safe_directions += 1
-        
-        return safe_directions <= 1  # Dead end if only 0 or 1 safe directions
     
     def _clear_screen(self):
         os.system('clear' if os.name == 'posix' else 'cls')
@@ -810,49 +713,6 @@ class SnakeGame:
         # Dead end if only 0 or 1 safe directions
         return 1.0 if safe_directions <= 1 else 0.0
 
-    def _get_lookahead_space(self) -> float:
-        """Get available space 2 steps ahead in the current direction"""
-        head_row, head_col = self.snake[0]
-        
-        # Calculate position 2 steps ahead
-        if self.direction == Direction.UP:
-            lookahead_pos = (head_row - 2, head_col)
-        elif self.direction == Direction.DOWN:
-            lookahead_pos = (head_row + 2, head_col)
-        elif self.direction == Direction.LEFT:
-            lookahead_pos = (head_row, head_col - 2)
-        else:  # RIGHT
-            lookahead_pos = (head_row, head_col + 2)
-        
-        # Check if lookahead position is valid
-        if (lookahead_pos[0] < 0 or lookahead_pos[0] >= self.height or 
-            lookahead_pos[1] < 0 or lookahead_pos[1] >= self.width or
-            lookahead_pos in self.snake):
-            return 0.0  # No space if position is invalid
-        
-        # Calculate available space from lookahead position
-        total_space = 0
-        for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:  # All directions
-            check_row = lookahead_pos[0] + dr
-            check_col = lookahead_pos[1] + dc
-            
-            # Count consecutive free cells in this direction
-            space_count = 0
-            for step in range(1, 5):  # Check up to 4 steps
-                test_row = lookahead_pos[0] + dr * step
-                test_col = lookahead_pos[1] + dc * step
-                
-                if (test_row >= 0 and test_row < self.height and 
-                    test_col >= 0 and test_col < self.width and
-                    (test_row, test_col) not in self.snake):
-                    space_count += 1
-                else:
-                    break
-            
-            total_space += space_count
-        
-        return total_space / 16.0  # Normalize by max possible space (4 directions * 4 steps)
-    
     def _a_star_pathfinding(self, start: Tuple[int, int], goal: Tuple[int, int]) -> Optional[List[Tuple[int, int]]]:
         """A* pathfinding algorithm to find optimal path to goal"""
         if start == goal:
