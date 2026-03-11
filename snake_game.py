@@ -5,6 +5,7 @@ import sys
 import random
 import termios
 import tty
+import heapq
 import numpy as np
 from enum import Enum
 from typing import List, Tuple, Optional, Dict, Any
@@ -718,46 +719,40 @@ class SnakeGame:
         if start == goal:
             return [start]
         
-        # Priority queue for open set (f_score, position)
-        open_set = [(0, start)]
+        open_set = []
+        counter = 0  # Tiebreaker so tuples with equal f_score never compare positions
+        heapq.heappush(open_set, (0, counter, start))
         came_from = {}
+        in_open = {start}
         
-        # Cost from start to current node
         g_score = {start: 0}
-        # Estimated total cost from start to goal through current node
-        f_score = {start: self._heuristic(start, goal)}
         
         while open_set:
-            current_f, current = open_set.pop(0)
+            current_f, _, current = heapq.heappop(open_set)
+            in_open.discard(current)
             
             if current == goal:
                 return self._reconstruct_path(came_from, current)
             
-            # Check all neighbors
             for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
                 neighbor = (current[0] + dr, current[1] + dc)
                 
-                # Check if neighbor is valid
                 if (neighbor[0] < 0 or neighbor[0] >= self.height or 
                     neighbor[1] < 0 or neighbor[1] >= self.width or
                     neighbor in self.snake):
                     continue
                 
-                # Calculate tentative g_score
                 tentative_g_score = g_score[current] + 1
                 
                 if neighbor not in g_score or tentative_g_score < g_score[neighbor]:
-                    # This path is better
                     came_from[neighbor] = current
                     g_score[neighbor] = tentative_g_score
-                    f_score[neighbor] = tentative_g_score + self._heuristic(neighbor, goal)
+                    f = tentative_g_score + self._heuristic(neighbor, goal)
                     
-                    # Add to open set if not already there
-                    if neighbor not in [pos for _, pos in open_set]:
-                        open_set.append((f_score[neighbor], neighbor))
-            
-            # Sort open set by f_score
-            open_set.sort()
+                    if neighbor not in in_open:
+                        counter += 1
+                        heapq.heappush(open_set, (f, counter, neighbor))
+                        in_open.add(neighbor)
         
         return None  # No path found
     
