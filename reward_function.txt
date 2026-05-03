@@ -1,7 +1,14 @@
-Reward = Food_Proximity_Reward + Food_Consumption_Reward + Death_Penalty + Survival_Bonus
+Reward computed in SnakeGame._calculate_reward (snake_game.py).
 
-Where:
-- Food_Proximity_Reward = +1 if distance_to_food_decreased, else 0
-- Food_Consumption_Reward = +10 if food_eaten, else 0  
-- Death_Penalty = -10 if game_over, else 0
-- Survival_Bonus = +0.1 for every valid move
+Mutually exclusive cases, evaluated in order:
+
+  1. Game over (wall or self collision)         => -10.0
+  2. Food eaten on this step                    => +10.0
+  3. Manhattan distance to food decreased       =>  +0.3
+  4. Manhattan distance to food increased       =>  -0.3
+  5. Otherwise (distance unchanged)             =>   0.0
+
+Notes:
+- No survival bonus per step.
+- No spatial / open-space penalty in the reward (spatial info is in the
+  state vector instead, so the agent learns to use it via Q-values).

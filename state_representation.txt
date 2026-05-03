@@ -1,19 +1,56 @@
 state_vector = [
-    # Basic information (10 entries)
-    distance_to_food,           # 1 entry
-    unit_vector_dx,            # 1 entry  
-    unit_vector_dy,            # 1 entry
-    normalized_snake_length,   # 1 entry
-    direction_up,              # 1 entry (one-hot)
-    direction_down,            # 1 entry (one-hot)
-    direction_left,            # 1 entry (one-hot)
-    direction_right,           # 1 entry (one-hot)
-    normalized_head_x,         # 1 entry
-    normalized_head_y,         # 1 entry
-    
-    # Simple danger (4 entries)
-    danger_up,                 # 1 entry (1 if wall/body 1 step away, 0 otherwise)
-    danger_down,               # 1 entry
-    danger_left,               # 1 entry
-    danger_right,              # 1 entry
+    # Danger detection relative to current heading (3 entries)
+    danger_straight,           # 1.0 if moving forward hits wall/body
+    danger_left,               # 1.0 if turning left hits wall/body
+    danger_right,              # 1.0 if turning right hits wall/body
+
+    # Current direction, one-hot (4 entries)
+    moving_left,
+    moving_right,
+    moving_up,
+    moving_down,
+
+    # Food direction relative to current heading (4 entries)
+    food_left,
+    food_right,
+    food_up,                   # food is ahead
+    food_down,                 # food is behind
+
+    # Distance to wall in each absolute direction, normalized /10 (4 entries)
+    wall_distance_up,
+    wall_distance_down,
+    wall_distance_left,
+    wall_distance_right,
+
+    # Distance to nearest body segment in each direction, normalized /10 (4 entries)
+    body_distance_up,
+    body_distance_down,
+    body_distance_left,
+    body_distance_right,
+
+    # Number of immediately-safe moves, normalized /4 (1 entry)
+    safe_moves,
+
+    # Dead-end flag per direction (4 entries)
+    dead_end_up,
+    dead_end_down,
+    dead_end_left,
+    dead_end_right,
+
+    # Available open space in each direction, normalized /10 (4 entries)
+    space_up,
+    space_down,
+    space_left,
+    space_right,
+
+    # A*-based path-quality score per direction (4 entries)
+    path_quality_up,
+    path_quality_down,
+    path_quality_left,
+    path_quality_right,
+
+    # Snake length, normalized /20 (1 entry)
+    snake_length,
 ]
+
+# Total: 33 entries
