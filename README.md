@@ -1,6 +1,6 @@
-# Snake DQN
+# Snake AI
 
-A Deep Q-Network (DQN) AI for the classic Snake game using PyTorch.
+Reinforcement-learning agents for the classic Snake game in PyTorch. Two architectures are supported: a Deep Q-Network (value-based) and REINFORCE (policy gradient).
 
 ## Installation
 
@@ -15,44 +15,41 @@ Play manually:
 python snake_game.py
 ```
 
-Train the AI:
+Train an agent (interactive choice between DQN and REINFORCE):
 ```bash
-python dqn_agent.py
+python train.py
+# or skip the prompt:
+python train.py --dqn
+python train.py --reinforce
 ```
 
-Test the AI:
+Run a trained model from `agents/`:
 ```bash
 python run_trained_model.py
 ```
 
+Check progress of saved checkpoints:
+```bash
+python monitor_training.py
+```
+
 ## Implementation
 
-This project implements a Deep Q-Network (DQN) agent to play the classic Snake game, with several enhancements for improved learning and performance:
+- **Architectures:**
+  - **DQN** (`dqn_agent.py`): 4-layer MLP (33 → 128 → 128 → 64 → 4) with ReLU activations, ε-greedy exploration, a 50k-transition experience replay buffer, a periodically-synced target network, and gradient clipping.
+  - **REINFORCE** (`reinforce_agent.py`): Same 4-layer MLP shape, but the head outputs action logits. Trained with Monte Carlo policy gradient (full-episode trajectories) using a mean-return baseline to reduce variance.
 
-- **Deep Q-Network Architecture:**  
-  The agent uses a neural network with four fully connected layers. The input layer receives a 29-dimensional state vector, followed by two hidden layers (each with 128 neurons and ReLU activations), a third hidden layer with 64 neurons, and an output layer with 4 neurons (corresponding to the four possible movement directions: up, down, left, right). This architecture allows the agent to learn complex strategies and spatial patterns in the game.
+- **State Representation (33 dimensions):** see `state_representation.txt` for the exact layout. Includes danger flags relative to the current heading, current direction (one-hot), food direction, wall and body distances in each absolute direction, a count of immediately-safe moves, dead-end flags, available open space per direction, A*-based path-quality scores per direction, and the normalized snake length.
 
-- **State Representation (29 Dimensions):**  
-  The state vector encodes comprehensive information about the game environment, including:
-  - The snake's current direction (one-hot encoded)
-  - Relative position of the food to the snake's head
-  - Danger indicators for all four directions (e.g., if moving in a direction would result in collision with the wall or the snake's own body)
-  - Distances to the walls and to the snake's own body in each direction
-  - Information about available space and potential dead ends
-  This rich state representation enables the agent to make informed decisions and anticipate future risks.
+- **Reward Function:** see `reward_function.txt`. Five mutually exclusive cases:
+  - `-10` on death (wall or self collision)
+  - `+10` on eating food
+  - `+0.3` if the Manhattan distance to food decreased this step
+  - `-0.3` if it increased
+  - `0` otherwise
 
-- **Reward Function with Spatial Awareness:**  
-  The reward function is carefully designed to encourage the agent to survive longer, seek food efficiently, and avoid self-trapping. It includes:
-  - Positive rewards for moving closer to the food and for eating food
-  - Small positive reward for each step survived (to encourage longer games)
-  - Penalties for moving away from the food, colliding with walls or the snake's own body, and entering dangerous or cramped spaces
-  - Additional spatial awareness: the agent is penalized for reducing its available escape routes or getting too close to its own body, and is rewarded for maintaining open space around the head
-  This balanced reward structure helps the agent learn not only to chase food but also to avoid common pitfalls like self-collision and dead ends.
+- **Tests and tooling:**
+  - `test_dqn.py` — sanity checks for the state vector, reward, agent action selection, and A* pathfinding.
+  - `monitor_training.py` — lists saved checkpoints (DQN and REINFORCE) and estimates episodes/hour.
 
-- **Experience Replay and Target Network:**  
-  The agent uses an experience replay buffer to store past experiences and samples random batches for training, which stabilizes learning. A separate target network is updated periodically to further improve training stability.
-
-- **Training and Testing Scripts:**  
-  The repository includes scripts for training the agent (`dqn_agent.py`), running a trained model (`run_trained_model.py`), and testing core components (`test_dqn.py`).
-
-For more details on the architecture and algorithms, see the code and comments in the respective Python files.
+For more details, see the code and comments in the respective Python files.
