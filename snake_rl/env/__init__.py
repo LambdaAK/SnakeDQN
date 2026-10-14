@@ -7,6 +7,8 @@ from snake_rl.env.rules import (
     START_LENGTH,
     GameState,
     StepEvents,
+    action_mask,
+    blocked_cells,
     reset_games,
     start_points,
     step_games,

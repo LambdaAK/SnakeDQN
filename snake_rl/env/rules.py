@@ -241,3 +241,23 @@ def step_games(state: GameState, actions, spawn_u: np.ndarray) -> StepEvents:
     state.over |= game_over
     return StepEvents(ate=ate, died=died, alive_before=alive_before,
                       game_over=game_over, winner=winner)
+
+
+def blocked_cells(state: GameState) -> np.ndarray:
+    """Cells still occupied next turn: every alive segment except each tail. Returns bool (N, B, B)."""
+    n, b = state.num_envs, state.board_size
+    running = state.alive & ~state.over[:, None]
+    return (_occupancy(state, running, start=0, end_offset=1) > 0).reshape(n, b, b)
+
+
+def action_mask(state: GameState) -> np.ndarray:
+    """Moves that don't immediately hit a wall or a body. Returns bool (N, S, 4)."""
+    n, b = state.num_envs, state.board_size
+    blocked = blocked_cells(state).reshape(n, b * b)
+    nxt = state.body[:, :, 0, None, :].astype(np.int64) + DIRECTIONS
+    r, c = nxt[..., 0], nxt[..., 1]
+    in_bounds = (r >= 0) & (r < b) & (c >= 0) & (c < b)
+    flat = np.clip(r, 0, b - 1) * b + np.clip(c, 0, b - 1)
+    free = ~blocked[np.arange(n)[:, None, None], flat]
+    running = state.alive & ~state.over[:, None]
+    return in_bounds & free & running[:, :, None]
