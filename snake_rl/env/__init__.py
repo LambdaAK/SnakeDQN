@@ -14,3 +14,5 @@ from snake_rl.env.rules import (
     step_games,
 )
 from snake_rl.env.observations import NUM_CHANNELS, build_observations
+from snake_rl.env.rewards import get_reward
+from snake_rl.env.snake_env import SnakeEnv
