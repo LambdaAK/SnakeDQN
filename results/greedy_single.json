@@ -1,0 +1,29 @@
+{
+  "n_games": 500,
+  "board_size": 11,
+  "seed": 0,
+  "mean_turns": 135.548,
+  "seats": [
+    {
+      "name": "greedy",
+      "wins": 0,
+      "draws": 0,
+      "losses": 0,
+      "win_rate": 0.0,
+      "win_rate_ci": [
+        0.0,
+        0.007624618530903363
+      ],
+      "mean_length": 25.842
+    }
+  ],
+  "score": {
+    "mean": 22.842,
+    "median": 22.0,
+    "max": 60,
+    "ci": [
+      22.0519,
+      23.616049999999998
+    ]
+  }
+}

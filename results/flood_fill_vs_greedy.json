@@ -1,0 +1,33 @@
+{
+  "n_games": 500,
+  "board_size": 11,
+  "seed": 0,
+  "mean_turns": 62.67,
+  "seats": [
+    {
+      "name": "flood_fill",
+      "wins": 386,
+      "draws": 18,
+      "losses": 96,
+      "win_rate": 0.772,
+      "win_rate_ci": [
+        0.7332333810348978,
+        0.8066188264842907
+      ],
+      "mean_length": 9.97
+    },
+    {
+      "name": "greedy",
+      "wins": 96,
+      "draws": 18,
+      "losses": 386,
+      "win_rate": 0.192,
+      "win_rate_ci": [
+        0.15987567270959485,
+        0.22882109230544162
+      ],
+      "mean_length": 11.1
+    }
+  ],
+  "score": null
+}

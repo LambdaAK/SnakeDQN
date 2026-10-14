@@ -1,0 +1,29 @@
+{
+  "n_games": 20,
+  "board_size": 8,
+  "seed": 0,
+  "mean_turns": 333.55,
+  "seats": [
+    {
+      "name": "hamiltonian",
+      "wins": 0,
+      "draws": 0,
+      "losses": 0,
+      "win_rate": 0.0,
+      "win_rate_ci": [
+        0.0,
+        0.16113012549493322
+      ],
+      "mean_length": 65.0
+    }
+  ],
+  "score": {
+    "mean": 62.0,
+    "median": 62.0,
+    "max": 62,
+    "ci": [
+      62.0,
+      62.0
+    ]
+  }
+}

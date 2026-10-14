@@ -1,0 +1,33 @@
+{
+  "n_games": 500,
+  "board_size": 11,
+  "seed": 0,
+  "mean_turns": 3.81,
+  "seats": [
+    {
+      "name": "safe_random",
+      "wins": 496,
+      "draws": 2,
+      "losses": 2,
+      "win_rate": 0.992,
+      "win_rate_ci": [
+        0.9796126401630988,
+        0.9968847352024922
+      ],
+      "mean_length": 3.278
+    },
+    {
+      "name": "random",
+      "wins": 2,
+      "draws": 2,
+      "losses": 496,
+      "win_rate": 0.004,
+      "win_rate_ci": [
+        0.0010976075412372681,
+        0.014466014041418871
+      ],
+      "mean_length": 3.166
+    }
+  ],
+  "score": null
+}
