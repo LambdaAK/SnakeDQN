@@ -1,55 +1,63 @@
-# Snake AI
+# Snake RL
 
-Reinforcement-learning agents for the classic Snake game in PyTorch. Two architectures are supported: a Deep Q-Network (value-based) and REINFORCE (policy gradient).
+Multi-agent Snake as a reinforcement-learning testbed. The end goal is agents trained by
+**self-play** against past versions of themselves, ranked by Elo and playable in the
+browser. This repository is being built in stages:
 
-## Installation
+1. **Foundation** (done): a fast, tested, batched Battlesnake environment, scripted
+   baseline bots and an evaluation harness.
+2. Algorithm benchmark: DQN through Rainbow components, and PPO, compared across seeds.
+3. Self-play league with Elo tracking.
+4. Browser demo with the trained agents.
+5. Write-up of the results.
+
+## Quick start
 
 ```bash
-pip install -r requirements.txt
+uv run pytest                                          # full test suite
+uv run python scripts/play.py --opponent flood_fill    # play against a bot (WASD)
+uv run python scripts/evaluate.py flood_fill greedy    # bot vs bot, 500 games
+uv run python scripts/benchmark_env.py                 # environment throughput
 ```
 
-## Usage
+## Environment
 
-Play manually:
-```bash
-python snake_game.py
+`SnakeEnv` steps many games at once, with every game's state held in NumPy arrays:
+
+```python
+from snake_rl.env import SnakeEnv
+
+env = SnakeEnv(num_envs=1024, num_snakes=2)       # standard 11x11 Battlesnake
+obs, info = env.reset()                           # obs: (1024, 2, 8, 11, 11)
+obs, rewards, dones, info = env.step(actions)     # actions: (1024, 2) in {up, down, left, right}
 ```
 
-Train an agent (interactive choice between DQN and REINFORCE):
-```bash
-python train.py
-# or skip the prompt:
-python train.py --dqn
-python train.py --reinforce
+- **Rules:** standard Battlesnake: simultaneous moves, health 100 that ticks down each turn,
+  growth on eating, head-to-head collisions won by the longer snake, food spawning.
+- **Observations:** egocentric 8-channel grids. These show own head, body and body age,
+  enemy heads and bodies, dangerous enemy heads, food, and health. No hand-made features.
+- **Speed:** about 214,000 env steps/sec on an Apple Silicon CPU (1024 games, 2 snakes).
+- **Correctness:** each rule has a unit test; the batched rules are checked step-by-step
+  against a slow reference implementation, and batched results match one-game-at-a-time
+  results exactly.
+
+## Baselines (500 games each, 11x11)
+
+| Matchup | Win rate of first bot |
+|---|---|
+| flood_fill vs greedy | 77.2% |
+| greedy vs safe_random | 81.6% |
+| safe_random vs random | 99.2% |
+
+The Hamiltonian-cycle bot fills an 8x8 board every game, a reference point for perfect
+single-snake play. Raw results, with 95% confidence intervals, are in `results/`.
+
+## Layout
+
 ```
-
-Run a trained model from `agents/`:
-```bash
-python run_trained_model.py
+snake_rl/env/        rules, observations, rewards, SnakeEnv, renderer
+snake_rl/baselines/  random, safe_random, greedy, flood_fill, hamiltonian bots
+snake_rl/eval/       match runner with confidence intervals
+scripts/             play, evaluate, benchmark
+tests/               pytest suite (run in CI)
 ```
-
-Check progress of saved checkpoints:
-```bash
-python monitor_training.py
-```
-
-## Implementation
-
-- **Architectures:**
-  - **DQN** (`dqn_agent.py`): 4-layer MLP (33 → 128 → 128 → 64 → 4) with ReLU activations, ε-greedy exploration, a 50k-transition experience replay buffer, a periodically-synced target network, and gradient clipping.
-  - **REINFORCE** (`reinforce_agent.py`): Same 4-layer MLP shape, but the head outputs action logits. Trained with Monte Carlo policy gradient (full-episode trajectories) using a mean-return baseline to reduce variance.
-
-- **State Representation (33 dimensions):** see `state_representation.txt` for the exact layout. Includes danger flags relative to the current heading, current direction (one-hot), food direction, wall and body distances in each absolute direction, a count of immediately-safe moves, dead-end flags, available open space per direction, A*-based path-quality scores per direction, and the normalized snake length.
-
-- **Reward Function:** see `reward_function.txt`. Five mutually exclusive cases:
-  - `-10` on death (wall or self collision)
-  - `+10` on eating food
-  - `+0.3` if the Manhattan distance to food decreased this step
-  - `-0.3` if it increased
-  - `0` otherwise
-
-- **Tests and tooling:**
-  - `test_dqn.py` — sanity checks for the state vector, reward, agent action selection, and A* pathfinding.
-  - `monitor_training.py` — lists saved checkpoints (DQN and REINFORCE) and estimates episodes/hour.
-
-For more details, see the code and comments in the respective Python files.
