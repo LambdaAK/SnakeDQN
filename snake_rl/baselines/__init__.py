@@ -1,5 +1,6 @@
 """Scripted baseline bots and a factory to build them by name."""
 
+from snake_rl.baselines.flood_fill import FloodFillBot
 from snake_rl.baselines.hamiltonian import HamiltonianBot, hamiltonian_cycle
 from snake_rl.baselines.simple import GreedyBot, RandomBot, SafeRandomBot
 
@@ -7,6 +8,7 @@ _BOTS = {
     "random": RandomBot,
     "safe_random": SafeRandomBot,
     "greedy": GreedyBot,
+    "flood_fill": FloodFillBot,
 }
 BOT_NAMES = tuple(_BOTS)
 
