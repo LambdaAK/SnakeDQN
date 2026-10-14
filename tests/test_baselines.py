@@ -66,11 +66,14 @@ def test_hamiltonian_bot_fills_the_board():
     bot = HamiltonianBot(8)
     final = np.zeros(2, int)
     done = np.zeros(2, bool)
-    while not done.all():
+    for _ in range(8 * 8 * 64):
+        if done.all():
+            break
         _, _, _, info = env.step(bot(env.state, 0)[:, None])
         new = info["game_over"] & ~done
         final[new] = info["final_length"][new, 0]
         done |= new
+    assert done.all()
     # All 64 cells are filled; length counts the tail segment duplicated by the final meal.
     assert (final == 8 * 8 + 1).all()
 
