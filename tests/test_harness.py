@@ -75,7 +75,11 @@ def test_evaluate_cli_rejects_unknown_bot():
 
 
 class Up:
-    """Always moves up (direction 0: row - 1). Snakes in different columns never collide."""
+    """Always moves up (direction 0: row - 1).
+
+    Outcomes are determined by the start rows: the game ends at the first wall death,
+    and snakes moving straight up cannot reach each other's bodies before that.
+    """
 
     name = "up"
 
