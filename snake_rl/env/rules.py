@@ -128,3 +128,116 @@ def reset_games(state: GameState, mask: np.ndarray, rng: np.random.Generator) ->
     state.food[idx, centre, centre] = True
     food_pos = starts + DIAGONALS[rng.integers(0, len(DIAGONALS), size=(m, s))]
     state.food[idx[:, None], food_pos[..., 0], food_pos[..., 1]] = True
+
+
+@dataclass
+class StepEvents:
+    ate: np.ndarray           # bool (N, S) snake ate food this turn
+    died: np.ndarray          # bool (N, S) snake was eliminated this turn
+    alive_before: np.ndarray  # bool (N, S) snake was alive in a running game before the turn
+    game_over: np.ndarray     # bool (N,)  game ended this turn
+    winner: np.ndarray        # int  (N,)  winning snake, -1 for none / draw / single-snake
+
+
+def _occupancy(state: GameState, mask: np.ndarray, start: int = 0,
+               end_offset: int = 0) -> np.ndarray:
+    """Count, per cell, the segments [start, length - end_offset) of snakes where mask is True.
+
+    Off-board segments (a head that just left the board) are ignored.
+    Returns int (N, B*B).
+    """
+    n, b = state.num_envs, state.board_size
+    seg = int(state.length.max())
+    pos = state.body[:, :, :seg].astype(np.int64)
+    r, c = pos[..., 0], pos[..., 1]
+    idx = np.arange(seg)
+    valid = (
+        mask[:, :, None]
+        & (idx >= start)
+        & (idx < state.length[:, :, None] - end_offset)
+        & (r >= 0) & (r < b) & (c >= 0) & (c < b)
+    )
+    flat = (np.arange(n)[:, None, None] * b + r) * b + c
+    return np.bincount(flat[valid], minlength=n * b * b).reshape(n, b * b)
+
+
+def _validate_actions(actions, num_envs: int, num_snakes: int) -> np.ndarray:
+    actions = np.asarray(actions)
+    if actions.shape != (num_envs, num_snakes):
+        raise ValueError(f"actions must have shape {(num_envs, num_snakes)}, got {actions.shape}")
+    if not np.issubdtype(actions.dtype, np.integer):
+        raise ValueError(f"actions must be integers, got dtype {actions.dtype}")
+    if ((actions < 0) | (actions > 3)).any():
+        raise ValueError("actions must be in 0..3 (up, down, left, right)")
+    return actions
+
+
+def _spawn_food(state: GameState, active: np.ndarray, spawn_u: np.ndarray,
+                on_board: np.ndarray) -> None:
+    n, b = state.num_envs, state.board_size
+    flat_food = state.food.reshape(n, b * b)
+    count = flat_food.sum(axis=1)
+    need = active & ((count < MIN_FOOD) | (spawn_u[:, 0] < SPAWN_CHANCE))
+    idx = np.flatnonzero(need)
+    if idx.size == 0:
+        return
+    occupied = _occupancy(state, on_board)[idx] > 0
+    free = ~flat_food[idx] & ~occupied
+    n_free = free.sum(axis=1)
+    pick = np.floor(spawn_u[idx, 1] * n_free).astype(np.int64)
+    cell = np.argmax(np.cumsum(free, axis=1) > pick[:, None], axis=1)
+    ok = n_free > 0
+    flat_food[idx[ok], cell[ok]] = True
+
+
+def step_games(state: GameState, actions, spawn_u: np.ndarray) -> StepEvents:
+    """Advance every running game by one turn, in place, following Battlesnake order:
+    move, reduce health, feed, spawn food, eliminate."""
+    n, s, b = state.num_envs, state.num_snakes, state.board_size
+    actions = _validate_actions(actions, n, s)
+    rows = np.arange(n)[:, None]
+    active = ~state.over
+    moving = state.alive & active[:, None]
+    alive_before = moving.copy()
+
+    # Move: every segment follows the one ahead of it; the old last segment drops off.
+    seg = min(int(state.length.max()) + 1, state.body.shape[2])
+    new_head = state.body[:, :, 0] + DIRECTIONS[actions]
+    state.body[moving, 1:seg] = state.body[moving, 0:seg - 1]
+    state.body[moving, 0] = new_head[moving]
+    state.health[moving] -= 1
+
+    # Feed: grow by duplicating the tail, so the tail stays put next turn.
+    r, c = new_head[..., 0], new_head[..., 1]
+    in_bounds = (r >= 0) & (r < b) & (c >= 0) & (c < b)
+    rc, cc = np.clip(r, 0, b - 1), np.clip(c, 0, b - 1)
+    ate = moving & in_bounds & state.food[rows, rc, cc]
+    en, sn = np.nonzero(ate)
+    tail = state.length[en, sn]
+    state.body[en, sn, tail] = state.body[en, sn, tail - 1]
+    state.length[ate] += 1
+    state.health[ate] = state.max_health
+    state.food[en, rc[en, sn], cc[en, sn]] = False
+
+    _spawn_food(state, active, spawn_u, moving)
+
+    # Eliminate: starved and off-board snakes first, then body and head-to-head
+    # collisions among the remaining snakes, applied simultaneously.
+    survivors = moving & in_bounds & (state.health > 0)
+    occupied = _occupancy(state, survivors, start=1)
+    head_flat = rc.astype(np.int64) * b + cc
+    body_hit = occupied[rows, head_flat] > 0
+    same_cell = head_flat[:, :, None] == head_flat[:, None, :]
+    pair = survivors[:, :, None] & survivors[:, None, :] & ~np.eye(s, dtype=bool)
+    other_not_shorter = state.length[:, None, :] >= state.length[:, :, None]
+    lost_head_to_head = np.any(same_cell & pair & other_not_shorter, axis=2)
+    died = moving & ~(survivors & ~body_hit & ~lost_head_to_head)
+    state.alive &= ~died
+
+    state.turn[active] += 1
+    n_alive = state.alive.sum(axis=1)
+    game_over = active & (n_alive <= (0 if s == 1 else 1))
+    winner = np.where(game_over & (n_alive == 1) & (s > 1), np.argmax(state.alive, axis=1), -1)
+    state.over |= game_over
+    return StepEvents(ate=ate, died=died, alive_before=alive_before,
+                      game_over=game_over, winner=winner)
