@@ -53,3 +53,21 @@ def test_batched_step_equals_individual_steps():
             step_games(single, actions[env:env + 1], spawn_u[env:env + 1])
             game = from_state(single, 0)
             assert_game_equal(state, env, game)
+
+
+@pytest.mark.parametrize("board_size,num_snakes", [(7, 1), (11, 2), (8, 3)])
+def test_starvation_matches_reference(board_size, num_snakes):
+    rng = np.random.default_rng(100 + board_size * 10 + num_snakes)
+    state = GameState.empty(32, num_snakes, board_size, max_health=10)
+    starved = 0
+    for _ in range(150):
+        reset_games(state, state.over, rng)
+        games = [from_state(state, env) for env in range(state.num_envs)]
+        actions = random_actions(state, rng, safe_prob=1.0)
+        spawn_u = rng.random((state.num_envs, 2))
+        events = step_games(state, actions, spawn_u)
+        starved += int((events.died & (state.health <= 0)).sum())
+        for env, game in enumerate(games):
+            ref_step(game, actions[env], spawn_u[env])
+            assert_game_equal(state, env, game)
+    assert starved > 0, "no snake starved; this test does not exercise starvation"
