@@ -94,12 +94,16 @@ class MatchResult:
 def run_matches(policies: Sequence[Policy], n_games: int, seed: int,
                 board_size: int = 11, max_health: int = 100,
                 names: Sequence[str] | None = None) -> MatchResult:
-    """Play n_games games, one per env, with policies[i] controlling snake i."""
+    """Play n_games games, one per env, with policies[i] controlling snake i.
+
+    `seed` fixes the games; reproducibility also requires the caller to seed the policies."""
     if not policies:
         raise ValueError("need at least one policy")
     if n_games < 1:
         raise ValueError(f"n_games must be >= 1, got {n_games}")
     s = len(policies)
+    if names is not None and len(names) != len(policies):
+        raise ValueError(f"got {len(names)} names for {len(policies)} policies")
     names = list(names) if names else [getattr(p, "name", f"seat{i}") for i, p in enumerate(policies)]
     env = SnakeEnv(n_games, s, board_size, max_health=max_health, seed=seed)
     env.reset()

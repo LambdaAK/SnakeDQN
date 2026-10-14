@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from snake_rl.baselines import GreedyBot, RandomBot
 from snake_rl.env import SnakeEnv
@@ -109,3 +110,8 @@ def test_draw_rule_and_exactly_once_counting():
     assert (s1.wins, s1.draws, s1.losses) == (exp_wins1, exp_draws, n - exp_wins1 - exp_draws)
     # Each game is counted exactly once: the game length is the first death turn only.
     assert np.isclose(result.mean_turns, first_out.mean())
+
+
+def test_names_length_must_match_policies():
+    with pytest.raises(ValueError):
+        run_matches([RandomBot(0), RandomBot(1)], n_games=2, seed=0, names=["only_one"])
