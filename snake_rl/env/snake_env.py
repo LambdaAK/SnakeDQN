@@ -38,16 +38,23 @@ class SnakeEnv:
     def step(self, actions):
         """Advance every game one turn. Games that end are reset immediately; `info`
         keys prefixed `final_` (and `game_over`, `winner`) describe them before the reset.
-        When no game ended, `obs` and `info["final_obs"]` are the same array."""
+        When no game ended, `obs` and `info["final_obs"]` are the same array.
+
+        `dones` is True on the step a snake dies or its game ends (every slot of an
+        ending game). In games with 3+ snakes a snake can die while its game continues:
+        until the game ends its slot is padding (reward 0, done False, action ignored).
+        `info["active"]` is True where this step's transition is real (the snake was
+        alive in a running game before the step); trainers should mask with it."""
         if self._needs_reset:
             raise RuntimeError("call reset() before step()")
         spawn_u = self.rng.random((self.num_envs, 2))
         events = step_games(self.state, actions, spawn_u)
         rewards = self.reward_fn(events)
-        dones = events.died | (events.game_over[:, None] & events.alive_before)
+        dones = events.died | events.game_over[:, None]
         obs = build_observations(self.state)
         info = {
             "game_over": events.game_over,
+            "active": events.alive_before,
             "winner": events.winner,
             "final_length": self.state.length.copy(),
             "final_turn": self.state.turn.copy(),

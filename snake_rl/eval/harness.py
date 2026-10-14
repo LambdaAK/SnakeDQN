@@ -111,11 +111,11 @@ def run_matches(policies: Sequence[Policy], n_games: int, seed: int,
     turns = np.zeros(n_games)
     while not recorded.all():
         actions = np.stack([policy(env.state, i) for i, policy in enumerate(policies)], axis=1)
-        _, _, dones, info = env.step(actions)
+        _, _, _, info = env.step(actions)
         new = info["game_over"] & ~recorded
         if new.any():
             winner[new] = info["winner"][new]
-            drew[new] = dones[new] & (info["winner"][new] < 0)[:, None]
+            drew[new] = info["active"][new] & (info["winner"][new] < 0)[:, None]
             final_length[new] = info["final_length"][new]
             turns[new] = info["final_turn"][new]
             recorded |= new

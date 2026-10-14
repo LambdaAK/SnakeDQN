@@ -86,3 +86,29 @@ def test_benchmark_script_runs():
         capture_output=True, text=True, check=True,
     )
     assert "env steps/sec" in result.stdout
+
+
+def test_multi_snake_done_and_active_contract():
+    n, s = 64, 3
+    env = SnakeEnv(n, s, seed=5)
+    _, info = env.reset()
+    rng = np.random.default_rng(5)
+    ended_games = 0
+    partial_deaths = 0
+    for _ in range(300):
+        prev_alive = info["alive"]
+        mask = info["action_mask"]
+        scores = rng.random((n, s, 4)) + mask * 2.0  # prefer safe moves
+        actions = scores.argmax(axis=2)
+        _, rewards, dones, info = env.step(actions)
+        active = info["active"]
+        assert active.shape == (n, s) and active.dtype == bool
+        assert not (active & ~prev_alive).any()      # active implies alive before the step
+        assert (active == prev_alive).all()          # no game is over between steps (auto-reset)
+        assert (rewards[~active] == 0).all()
+        assert not dones[~active & ~info["game_over"][:, None]].any()
+        over = info["game_over"]
+        ended_games += int(over.sum())
+        assert dones[over].all()                     # every slot of an ending game is done
+        partial_deaths += int((dones & ~over[:, None]).sum())
+    assert ended_games > 0 and partial_deaths > 0
