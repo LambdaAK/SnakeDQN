@@ -1,0 +1,1 @@
+"""Vectorized Battlesnake environment."""

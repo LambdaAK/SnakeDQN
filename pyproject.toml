@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "snake-rl"
+version = "0.1.0"
+description = "Multi-agent Snake reinforcement learning: a vectorized Battlesnake environment, baselines and evaluation"
+requires-python = ">=3.11"
+dependencies = ["numpy>=1.26", "scipy>=1.11"]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.setuptools.packages.find]
+include = ["snake_rl*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
