@@ -264,7 +264,10 @@ def blocked_cells(state: GameState) -> np.ndarray:
 
 
 def action_mask(state: GameState) -> np.ndarray:
-    """Moves that don't immediately hit a wall or a body. Returns bool (N, S, 4)."""
+    """Moves that don't immediately hit a wall or a body. Returns bool (N, S, 4).
+
+    Assumes every tail moves away (an enemy that eats this turn keeps its tail, so a
+    move onto it can still be fatal) and ignores head-to-head risk."""
     n, b = state.num_envs, state.board_size
     blocked = blocked_cells(state).reshape(n, b * b)
     nxt = state.body[:, :, 0, None, :].astype(np.int64) + DIRECTIONS

@@ -12,7 +12,9 @@ RewardFn = Callable[[StepEvents], np.ndarray]
 
 
 def winloss(events: StepEvents) -> np.ndarray:
-    """+1 to the winner when a game ends, -1 on death, 0 when the last snakes die together."""
+    """+1 to the winner when a game ends, -1 on death, 0 when the last snakes die together.
+
+    In single-snake mode every death is a draw (reward 0), so use "food" there."""
     rewards = np.zeros(events.died.shape, np.float32)
     draw = events.game_over & (events.winner < 0)
     rewards[events.died & ~draw[:, None]] = -1.0
