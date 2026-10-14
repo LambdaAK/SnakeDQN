@@ -9,11 +9,8 @@
       "wins": 0,
       "draws": 0,
       "losses": 0,
-      "win_rate": 0.0,
-      "win_rate_ci": [
-        0.0,
-        0.007624618530903363
-      ],
+      "win_rate": null,
+      "win_rate_ci": null,
       "mean_length": 26.732
     }
   ],

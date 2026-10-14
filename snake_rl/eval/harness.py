@@ -43,8 +43,8 @@ class SeatResult:
     wins: int
     draws: int
     losses: int
-    win_rate: float
-    win_rate_ci: tuple[float, float]
+    win_rate: float | None  # None for single-snake runs, which have no opponent
+    win_rate_ci: tuple[float, float] | None
     mean_length: float
 
 
@@ -132,8 +132,9 @@ def run_matches(policies: Sequence[Policy], n_games: int, seed: int,
             wins = int((winner == i).sum())
             draws = int(drew[:, i].sum())
             losses = n_games - wins - draws
-        seats.append(SeatResult(name, wins, draws, losses, wins / n_games,
-                                wilson_interval(wins, n_games),
+        rate = None if s == 1 else wins / n_games
+        ci = None if s == 1 else wilson_interval(wins, n_games)
+        seats.append(SeatResult(name, wins, draws, losses, rate, ci,
                                 float(final_length[:, i].mean())))
 
     score = None

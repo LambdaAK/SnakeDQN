@@ -45,6 +45,9 @@ def test_single_snake_reports_score():
     assert score is not None
     assert score.max >= score.median >= 0
     assert score.ci[0] <= score.mean <= score.ci[1]
+    seat = result.seats[0]
+    assert seat.win_rate is None and seat.win_rate_ci is None
+    assert (seat.wins, seat.draws, seat.losses) == (0, 0, 0)
 
 
 def test_json_and_table(tmp_path):
