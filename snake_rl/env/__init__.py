@@ -13,3 +13,4 @@ from snake_rl.env.rules import (
     start_points,
     step_games,
 )
+from snake_rl.env.observations import NUM_CHANNELS, build_observations
