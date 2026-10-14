@@ -91,3 +91,68 @@ def test_eight_snakes_fit_on_smallest_board():
     for env in range(8):
         heads = {tuple(state.body[env, k, 0]) for k in range(8)}
         assert len(heads) == 8
+
+
+def _groups(board_size):
+    a, m, z = 1, board_size // 2, board_size - 2
+    corners = {(a, a), (a, z), (z, a), (z, z)}
+    cardinals = {(a, m), (m, a), (m, z), (z, m)}
+    return corners, cardinals
+
+
+@pytest.mark.parametrize("num_snakes", [2, 3, 4])
+def test_starts_are_all_corners_or_all_cardinals(num_snakes):
+    state = fresh(num_envs=200, num_snakes=num_snakes)
+    corners, cardinals = _groups(11)
+    kinds = set()
+    for env in range(state.num_envs):
+        heads = {tuple(int(x) for x in state.body[env, k, 0]) for k in range(num_snakes)}
+        assert len(heads) == num_snakes
+        assert heads <= corners or heads <= cardinals
+        kinds.add("corners" if heads <= corners else "cardinals")
+    assert kinds == {"corners", "cardinals"}
+
+
+def test_more_than_four_snakes_use_chosen_group_first():
+    state = fresh(num_envs=100, num_snakes=6)
+    corners, cardinals = _groups(11)
+    for env in range(state.num_envs):
+        heads = [tuple(int(x) for x in state.body[env, k, 0]) for k in range(6)]
+        first = set(heads[:4])
+        assert first == corners or first == cardinals
+        assert len(set(heads)) == 6
+
+
+def _allowed_diagonals(head, b):
+    centre = b // 2
+    dist = abs(head[0] - centre) + abs(head[1] - centre)
+    out = []
+    for dr, dc in DIAGONALS:
+        r, c = head[0] + int(dr), head[1] + int(dc)
+        if (r in (0, b - 1)) and (c in (0, b - 1)):
+            continue
+        if abs(r - centre) + abs(c - centre) < dist:
+            continue
+        out.append((r, c))
+    return out
+
+
+@pytest.mark.parametrize("board_size", [7, 8, 11])
+def test_every_start_point_has_an_allowed_diagonal(board_size):
+    for p in start_points(board_size):
+        assert _allowed_diagonals((int(p[0]), int(p[1])), board_size)
+
+
+@pytest.mark.parametrize("board_size", [7, 8, 11])
+def test_initial_snake_food_is_on_allowed_diagonal(board_size):
+    state = fresh(num_envs=200, num_snakes=4, board_size=board_size, seed=3)
+    centre = board_size // 2
+    for env in range(state.num_envs):
+        allowed_all = set()
+        for k in range(4):
+            head = (int(state.body[env, k, 0, 0]), int(state.body[env, k, 0, 1]))
+            allowed = _allowed_diagonals(head, board_size)
+            allowed_all |= set(allowed)
+            assert any(state.food[env, r, c] for r, c in allowed)
+        foods = {(int(r), int(c)) for r, c in np.argwhere(state.food[env])}
+        assert foods - {(centre, centre)} <= allowed_all

@@ -45,9 +45,9 @@ obs, rewards, dones, info = env.step(actions)     # actions: (1024, 2) in {up, d
 
 | Matchup | Win rate of first bot |
 |---|---|
-| flood_fill vs greedy | 77.2% |
-| greedy vs safe_random | 81.6% |
-| safe_random vs random | 99.2% |
+| flood_fill vs greedy | 74.0% |
+| greedy vs safe_random | 80.2% |
+| safe_random vs random | 99.6% |
 
 The Hamiltonian-cycle bot fills an 8x8 board every game, a reference point for perfect
 single-snake play. Raw results, with 95% confidence intervals, are in `results/`.

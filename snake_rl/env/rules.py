@@ -111,8 +111,13 @@ def reset_games(state: GameState, mask: np.ndarray, rng: np.random.Generator) ->
     if idx.size == 0:
         return
     m, s, b = idx.size, state.num_snakes, state.board_size
-    points = start_points(b)
-    order = np.argsort(rng.random((m, len(points))), axis=1)[:, :s]
+    points = start_points(b)  # indices 0, 2, 5, 7 are corners; 1, 3, 4, 6 are edge midpoints
+    is_corner = np.zeros(len(points), bool)
+    is_corner[[0, 2, 5, 7]] = True
+    # Each game picks one group (50/50) to fill first, shuffled; the other group follows.
+    pick_corners = rng.random(m) < 0.5
+    first = np.where(pick_corners[:, None], is_corner, ~is_corner)
+    order = np.argsort(rng.random((m, len(points))) + ~first, axis=1)[:, :s]
     starts = points[order]  # (m, s, 2)
 
     state.body[idx] = 0
@@ -126,7 +131,15 @@ def reset_games(state: GameState, mask: np.ndarray, rng: np.random.Generator) ->
     state.food[idx] = False
     centre = b // 2
     state.food[idx, centre, centre] = True
-    food_pos = starts + DIAGONALS[rng.integers(0, len(DIAGONALS), size=(m, s))]
+    # Snake food: a diagonal of the start that is not a board corner and not strictly
+    # closer to the centre than the start itself.
+    cand = starts[:, :, None, :] + DIAGONALS  # (m, s, 4, 2)
+    corner = ((cand == 0) | (cand == b - 1)).all(axis=-1)
+    dist = np.abs(cand - centre).sum(axis=-1)
+    start_dist = np.abs(starts - centre).sum(axis=-1)
+    allowed = ~corner & (dist >= start_dist[:, :, None])
+    choice = np.argmax(rng.random((m, s, len(DIAGONALS))) * allowed, axis=2)
+    food_pos = np.take_along_axis(cand, choice[:, :, None, None], axis=2)[:, :, 0]
     state.food[idx[:, None], food_pos[..., 0], food_pos[..., 1]] = True
 
 

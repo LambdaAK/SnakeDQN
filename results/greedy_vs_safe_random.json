@@ -2,31 +2,31 @@
   "n_games": 500,
   "board_size": 11,
   "seed": 0,
-  "mean_turns": 55.388,
+  "mean_turns": 57.668,
   "seats": [
     {
       "name": "greedy",
-      "wins": 408,
-      "draws": 13,
-      "losses": 79,
-      "win_rate": 0.816,
+      "wins": 401,
+      "draws": 6,
+      "losses": 93,
+      "win_rate": 0.802,
       "win_rate_ci": [
-        0.7796701866722183,
-        0.8475110544162506
+        0.7648252982841597,
+        0.8345694321231747
       ],
-      "mean_length": 12.476
+      "mean_length": 12.88
     },
     {
       "name": "safe_random",
-      "wins": 79,
-      "draws": 13,
-      "losses": 408,
-      "win_rate": 0.158,
+      "wins": 93,
+      "draws": 6,
+      "losses": 401,
+      "win_rate": 0.186,
       "win_rate_ci": [
-        0.1286522063728175,
-        0.1925630327023204
+        0.15433345489426237,
+        0.22245480554314495
       ],
-      "mean_length": 4.306
+      "mean_length": 4.332
     }
   ],
   "score": null
