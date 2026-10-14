@@ -181,7 +181,7 @@ def _spawn_food(state: GameState, active: np.ndarray, spawn_u: np.ndarray,
     idx = np.flatnonzero(need)
     if idx.size == 0:
         return
-    occupied = _occupancy(state, on_board)[idx] > 0
+    occupied = _occupancy(state, on_board & need[:, None])[idx] > 0
     free = ~flat_food[idx] & ~occupied
     n_free = free.sum(axis=1)
     pick = np.floor(spawn_u[idx, 1] * n_free).astype(np.int64)
