@@ -11,12 +11,10 @@ NUM_CHANNELS = 8
  DANGEROUS_HEADS, FOOD, HEALTH) = range(NUM_CHANNELS)
 
 
-def _snake_layers(state: GameState):
-    """Per-snake head, body and age planes, each float32 (N, S, B, B). Dead snakes are blank."""
-    n, s, b = state.num_envs, state.num_snakes, state.board_size
-    head = np.zeros((n, s, b, b), np.float32)
-    body = np.zeros((n, s, b, b), np.float32)
-    age = np.zeros((n, s, b, b), np.float32)
+def _snake_layers(state: GameState, out: np.ndarray):
+    """Fill the head, body and age channels of `out` (zeroed, (N, S, C, B, B)) and return
+    them as views. Dead snakes are blank."""
+    head, body, age = out[:, :, OWN_HEAD], out[:, :, OWN_BODY], out[:, :, OWN_AGE]
     seg = int(state.length.max())
     if seg == 0:
         return head, body, age
@@ -40,18 +38,16 @@ def build_observations(state: GameState, envs=None) -> np.ndarray:
     if envs is not None:
         state = state.take(envs)
     n, s, b = state.num_envs, state.num_snakes, state.board_size
-    head, body, age = _snake_layers(state)
-    enemy_heads = head.sum(axis=1, keepdims=True) - head
-    enemy_bodies = body.sum(axis=1, keepdims=True) - body
+    out = np.zeros((n, s, NUM_CHANNELS, b, b), np.float32)
+    head, body, age = _snake_layers(state, out)
+    out[:, :, ENEMY_HEADS] = head.sum(axis=1, keepdims=True) - head
+    out[:, :, ENEMY_BODIES] = body.sum(axis=1, keepdims=True) - body
     threat = (
         (state.length[:, None, :] >= state.length[:, :, None])
         & state.alive[:, None, :]
         & ~np.eye(s, dtype=bool)
     )  # (N, viewer, other)
-    dangerous = np.einsum("nvk,nkhw->nvhw", threat.astype(np.float32), head)
-    food = np.broadcast_to(state.food[:, None].astype(np.float32), (n, s, b, b))
-    health = (state.health * state.alive / state.max_health).astype(np.float32)
-    health = np.broadcast_to(health[:, :, None, None], (n, s, b, b))
-    return np.stack(
-        [head, body, age, enemy_heads, enemy_bodies, dangerous, food, health], axis=2
-    )
+    out[:, :, DANGEROUS_HEADS] = np.einsum("nvk,nkhw->nvhw", threat.astype(np.float32), head)
+    out[:, :, FOOD] = state.food[:, None]
+    out[:, :, HEALTH] = (state.health * state.alive / state.max_health)[:, :, None, None]
+    return out
