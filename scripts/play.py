@@ -22,10 +22,14 @@ def read_key() -> str:
     try:
         old = termios.tcgetattr(fd)
     except termios.error:  # not a terminal
-        return (input("move (w/a/s/d, q to quit): ").strip().lower() or "q")[0]
+        try:
+            return (input("move (w/a/s/d, q to quit): ").strip().lower() or "q")[0]
+        except EOFError:
+            return "q"
     try:
         tty.setraw(fd)
-        return sys.stdin.read(1).lower()
+        key = sys.stdin.read(1).lower()
+        return "q" if key in ("", "\x03", "\x04") else key
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old)
 
