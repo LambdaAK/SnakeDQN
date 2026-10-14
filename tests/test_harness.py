@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 
 from snake_rl.baselines import GreedyBot, RandomBot
+from snake_rl.env import SnakeEnv
 from snake_rl.eval import bootstrap_mean_ci, run_matches, wilson_interval
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -71,3 +72,36 @@ def test_evaluate_cli_rejects_unknown_bot():
         capture_output=True, text=True,
     )
     assert result.returncode != 0 and "invalid choice" in result.stderr
+
+
+class Up:
+    """Always moves up (direction 0: row - 1). Snakes in different columns never collide."""
+
+    name = "up"
+
+    def __call__(self, state, snake):
+        return np.zeros(state.num_envs, dtype=np.int64)
+
+
+def test_draw_rule_and_exactly_once_counting():
+    n, seed = 40, 0
+    # Same construction and reset as run_matches, so the start cells are identical.
+    env = SnakeEnv(n, 2, seed=seed)
+    env.reset()
+    rows = env.state.body[:, :, 0, 0].astype(int)  # (N, 2) head rows
+    # A head at row r moves up and leaves the board on turn r + 1.
+    death = rows + 1
+    first_out = death.min(axis=1)
+    equal = rows[:, 0] == rows[:, 1]
+    assert equal.any() and (~equal).any(), "test data must contain draws and decisive games"
+
+    result = run_matches([Up(), Up()], n_games=n, seed=seed)
+    s0, s1 = result.seats
+
+    exp_draws = int(equal.sum())
+    exp_wins0 = int((rows[:, 0] > rows[:, 1]).sum())  # seat 1 dies first -> seat 0 wins
+    exp_wins1 = int((rows[:, 1] > rows[:, 0]).sum())
+    assert (s0.wins, s0.draws, s0.losses) == (exp_wins0, exp_draws, n - exp_wins0 - exp_draws)
+    assert (s1.wins, s1.draws, s1.losses) == (exp_wins1, exp_draws, n - exp_wins1 - exp_draws)
+    # Each game is counted exactly once: the game length is the first death turn only.
+    assert np.isclose(result.mean_turns, first_out.mean())
