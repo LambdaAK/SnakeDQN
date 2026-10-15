@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from snake_rl.slither.rules import body_radius, head_points, near_pairs, ring_index
+from snake_rl.slither.rules import body_radius, head_points, live_points, near_pairs
 
 OBS_CHANNELS = 8
 NUM_SCALARS = 7
@@ -55,9 +55,7 @@ def build_observations(state) -> np.ndarray:
     sec[..., 0] = _close(-b + np.sqrt(np.maximum(b * b - cc, 0.0)), vision)
 
     # 1-3: bodies (every live point, including heads)
-    lidx = ring_index(state)
-    pe, pj, pp = np.nonzero((lidx < state.length[..., None]) & alive[..., None])
-    pl = lidx[pe, pj, pp]
+    pe, pj, pp, pl = live_points(state, alive)
     px, py = state.body[pe, pj, pp, 0], state.body[pe, pj, pp, 1]
     q, i = near_pairs(pe, px, py, heads, alive, vision + float(radius.max(initial=0.0)) + 1e-6)
     e, j, l = pe[q], pj[q], pl[q]

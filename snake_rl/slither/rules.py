@@ -82,6 +82,21 @@ def ring_index(state: SlitherState) -> np.ndarray:
     return (state.head[..., None].astype(np.int64) - np.arange(cap)) % cap
 
 
+def live_points(state, alive, start=0):
+    """(pe, pj, pp, lidx) for every point with logical index start <= i < length of every
+    snake in `alive`, in (arena, slot, logical index) order."""
+    lmax = int(state.length[alive].max(initial=0))
+    if lmax <= start:
+        z = np.zeros(0, np.int64)
+        return z, z.copy(), z.copy(), z.copy()
+    i = np.arange(start, lmax)
+    ok = alive[..., None] & (i < state.length[..., None])
+    pe, pj, k = np.nonzero(ok)
+    lidx = i[k]
+    pp = (state.head[pe, pj].astype(np.int64) - lidx) % state.cfg.body_capacity
+    return pe, pj, pp, lidx
+
+
 def head_points(state: SlitherState) -> np.ndarray:
     """(N, S, 2) head positions (meaningless for dead slots)."""
     n, s = state.num_envs, state.num_snakes
@@ -319,8 +334,7 @@ def _body_hits(state, heads, radius, alive):
     """For each live head, the lowest slot j != i whose body (points 1..) it touches; S if none."""
     n, s = state.num_envs, state.num_snakes
     first = np.full((n, s), s, np.int32)
-    lidx = ring_index(state)
-    pe, pj, pp = np.nonzero((lidx >= 1) & (lidx < state.length[..., None]) & alive[..., None])
+    pe, pj, pp, _ = live_points(state, alive, 1)
     px, py = state.body[pe, pj, pp, 0], state.body[pe, pj, pp, 1]
     reach = 2.0 * float(radius.max(initial=0.0)) + 1e-6
     q, i = near_pairs(pe, px, py, heads, alive, reach)
