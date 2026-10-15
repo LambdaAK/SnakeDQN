@@ -33,9 +33,8 @@ const TEMPLATE = `
     </div>
     <div class="sl-side">
       <div><p class="sl-lbl">Leaderboard</p><ol class="sl-leaders" data-sl="leaders"></ol></div>
-      <div><p class="sl-lbl"><span data-sl="ai-name">AI</span> · steering</p>
-        <canvas class="sl-fan" data-sl="fan" aria-label="Steering probabilities"></canvas>
-        <p class="sl-meta">Boost <span data-sl="boost-p">–</span> · Value <span data-sl="value">–</span></p></div>
+      <div><p class="sl-lbl"><span data-sl="ai-name">AI</span> · confidence</p>
+        <p class="sl-meta" data-sl="value">–</p></div>
       <div class="sl-pills">
         <button type="button" data-sl="restart">Restart</button>
         <button type="button" data-sl="pause">Pause</button>
@@ -77,8 +76,6 @@ export function mountSlitherDemo(root, options = {}) {
   const $ = (key) => root.querySelector(`[data-sl="${key}"]`);
   const canvas = $("arena");
   const ctx = canvas.getContext("2d");
-  const fan = $("fan");
-  const fanCtx = fan.getContext("2d");
   const overlay = $("overlay");
   const tabs = [...root.querySelectorAll(".sl-tabs button")];
 
@@ -136,7 +133,7 @@ export function mountSlitherDemo(root, options = {}) {
       const probs = maskedSoftmax(Array.from(logits.subarray(r * 18, r * 18 + 18)), actionMask(game, k, cfg));
       const action = deterministic ? argmax(probs) : sample(probs);
       plan[k] = decodeAction(action, cfg);
-      brain[k] = { probs, value: value[r], action };
+      brain[k] = { value: value[r] };
     });
   }
 
@@ -236,29 +233,7 @@ export function mountSlitherDemo(root, options = {}) {
     const k = mode === "watch" ? follow : biggest(true);
     const b = brain[k];
     $("ai-name").textContent = NAMES[k % NAMES.length];
-    $("boost-p").textContent = b ? `${Math.round(100 * b.probs.filter((_, a) => a % 2).reduce((x, y) => x + y, 0))}%` : "–";
     $("value").textContent = b ? b.value.toFixed(2) : "–";
-    drawFan(b);
-  }
-
-  // The 9 steering bins as a fan pointing up (forward); wedge length is the bin's probability.
-  function drawFan(b) {
-    const W = fan.width, H = fan.height;
-    if (W < 20 * dpr || H < 20 * dpr) return;
-    fanCtx.clearRect(0, 0, W, H);
-    const cx = W / 2, cy = H - 6 * dpr, rMin = 10 * dpr, rMax = Math.max(rMin, Math.min(H - 12 * dpr, W / 2 - 4 * dpr));
-    const steer = Array.from({ length: 9 }, (_, i) => (b ? b.probs[2 * i] + b.probs[2 * i + 1] : 0));
-    const top = Math.max(...steer, 1e-9);
-    for (let i = 0; i < 9; i++) {
-      const a = -Math.PI / 2 + (i - 4) * (Math.PI / 9);
-      const r = rMin + (rMax - rMin) * (steer[i] / top);
-      fanCtx.beginPath();
-      fanCtx.moveTo(cx, cy);
-      fanCtx.arc(cx, cy, r, a - Math.PI / 20, a + Math.PI / 20);
-      fanCtx.closePath();
-      fanCtx.fillStyle = b && Math.floor(b.action / 2) === i ? theme.accent : theme.faint;
-      fanCtx.fill();
-    }
   }
 
   // ---------- overlay ----------
@@ -369,20 +344,16 @@ export function mountSlitherDemo(root, options = {}) {
     const v = (n) => css.getPropertyValue(n).trim();
     const board = v("--sl-board"), fg = v("--sl-fg");
     theme = { board, fg, outside: mix(board, fg, 0.06), grid: mix(board, v("--sl-line"), 0.7),
-              wall: v("--sl-wall"), accent: v("--sl-accent"), faint: mix(board, fg, 0.25) };
+              wall: v("--sl-wall") };
   }
   function resizeCanvas() {
     dpr = Math.min(window.devicePixelRatio || 1, 2);
     const r = canvas.getBoundingClientRect();
     canvas.width = Math.max(1, Math.round(r.width * dpr));
     canvas.height = Math.max(1, Math.round(r.height * dpr));
-    fan.width = Math.max(1, Math.round(fan.clientWidth * dpr));
-    fan.height = Math.max(1, Math.round(fan.clientHeight * dpr));
   }
 
-  const resizer = new ResizeObserver(resizeCanvas);
-  resizer.observe(canvas);
-  resizer.observe(fan);
+  new ResizeObserver(resizeCanvas).observe(canvas);
   // Follow the host page's light/dark switch (a class or data attribute on <html>).
   new MutationObserver(readTheme).observe(document.documentElement, { attributes: true, attributeFilter: ["class", "data-theme"] });
   matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", readTheme);

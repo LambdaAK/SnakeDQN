@@ -73,6 +73,5 @@
 .slither-demo .sl-leaders li.sl-on { font-weight: 600; }
 .slither-demo .sl-dot { width: 8px; height: 8px; border-radius: 999px; }
 .slither-demo .sl-mass { font-family: var(--sl-mono); font-size: 12px; color: var(--sl-muted); }
-.slither-demo .sl-fan { width: 100%; height: 96px; display: block; }
 .slither-demo .sl-pills { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .slither-demo .sl-meta { font-size: 13px; color: var(--sl-faint); }
