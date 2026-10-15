@@ -194,6 +194,7 @@ export function mountSlitherDemo(root, options = {}) {
   }
 
   function frame(now) {
+    requestAnimationFrame(frame); // first, so a drawing error can never stop the loop
     const dt = Math.min(now - last, 250);
     last = now;
     const running = started && session && !paused && visible;
@@ -210,7 +211,6 @@ export function mountSlitherDemo(root, options = {}) {
       human: mode === "play" ? HUMAN : -1, theme, dpr,
     }, camera);
     if (++frameNo % 6 === 0) updatePanel();
-    requestAnimationFrame(frame);
   }
 
   // ---------- panel ----------
@@ -232,8 +232,9 @@ export function mountSlitherDemo(root, options = {}) {
   // The 9 steering bins as a fan pointing up (forward); wedge length is the bin's probability.
   function drawFan(b) {
     const W = fan.width, H = fan.height;
+    if (W < 20 * dpr || H < 20 * dpr) return;
     fanCtx.clearRect(0, 0, W, H);
-    const cx = W / 2, cy = H - 6 * dpr, rMin = 10 * dpr, rMax = Math.min(H - 12 * dpr, W / 2 - 4 * dpr);
+    const cx = W / 2, cy = H - 6 * dpr, rMin = 10 * dpr, rMax = Math.max(rMin, Math.min(H - 12 * dpr, W / 2 - 4 * dpr));
     const steer = Array.from({ length: 9 }, (_, i) => (b ? b.probs[2 * i] + b.probs[2 * i + 1] : 0));
     const top = Math.max(...steer, 1e-9);
     for (let i = 0; i < 9; i++) {
@@ -364,7 +365,9 @@ export function mountSlitherDemo(root, options = {}) {
     fan.height = Math.max(1, Math.round(fan.clientHeight * dpr));
   }
 
-  new ResizeObserver(resizeCanvas).observe(canvas);
+  const resizer = new ResizeObserver(resizeCanvas);
+  resizer.observe(canvas);
+  resizer.observe(fan);
   // Follow the host page's light/dark switch (a class or data attribute on <html>).
   new MutationObserver(readTheme).observe(document.documentElement, { attributes: true, attributeFilter: ["class", "data-theme"] });
   matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", readTheme);
