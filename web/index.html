@@ -8,14 +8,14 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=12">
+  <link rel="stylesheet" href="style.css?v=13">
+  <link rel="stylesheet" href="snake-demo.css?v=13">
   <script>
     // Light by default; dark only if the visitor chose it with the toggle.
     try {
       if (localStorage.getItem("theme") === "dark") document.documentElement.classList.add("dark");
     } catch {}
   </script>
-  <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.min.js"></script>
 </head>
 <body>
   <header class="top">
@@ -33,54 +33,7 @@
     <h1 class="t-page">Snake, learned by playing itself<span class="accent">.</span></h1>
     <p class="t-sub lede">Neural networks trained only against copies of themselves, running live in your browser.</p>
 
-    <section class="card" aria-label="Live game">
-      <div class="tabs" role="tablist">
-        <button role="tab" data-mode="watch" class="active">AI vs AI</button>
-        <button role="tab" data-mode="play">You vs AI</button>
-        <button role="tab" data-mode="bot">AI vs bot</button>
-        <button role="tab" data-mode="arena">Arena</button>
-      </div>
-
-      <div class="game">
-        <div class="board-wrap">
-          <canvas id="board" aria-label="Snake game board"></canvas>
-          <div id="overlay" class="overlay" hidden></div>
-        </div>
-
-        <aside class="side">
-          <div>
-            <p class="lbl">Snakes</p>
-            <ul id="snakes" class="snakes"></ul>
-          </div>
-          <div>
-            <p class="lbl"><span class="ai-name">Orange</span> · next move</p>
-            <ul id="probs" class="probs"></ul>
-          </div>
-          <div>
-            <p class="lbl">Confidence</p>
-            <div class="value"><div class="meter"><div id="value-bar"></div></div><span id="value-text">–</span></div>
-          </div>
-          <div class="pills">
-            <button id="restart" type="button">Restart</button>
-            <button id="pause" type="button">Pause</button>
-            <button id="speed" type="button">Speed 1×</button>
-          </div>
-          <div id="arena-controls" class="pills stepper" hidden>
-            <button id="fewer" type="button" aria-label="Fewer snakes">−</button>
-            <span id="arena-count">6 snakes</span>
-            <button id="more" type="button" aria-label="More snakes">+</button>
-          </div>
-          <p id="tally" class="t-meta"></p>
-        </aside>
-      </div>
-
-      <div id="dpad" class="dpad" hidden>
-        <button data-dir="0" aria-label="Up">↑</button>
-        <button data-dir="2" aria-label="Left">←</button>
-        <button data-dir="1" aria-label="Down">↓</button>
-        <button data-dir="3" aria-label="Right">→</button>
-      </div>
-    </section>
+    <section id="demo" aria-label="Live game"></section>
 
     <section class="block">
       <h2 class="t-group">Results</h2>
@@ -102,6 +55,6 @@
     <a class="ink" href="https://github.com/LambdaAK/SnakeDQN">Source</a> · Alex Kozik
   </footer>
 
-  <script type="module" src="app.js?v=12"></script>
+  <script type="module" src="page.js?v=13"></script>
 </body>
 </html>

@@ -1,0 +1,89 @@
+/* Snake self-play demo component. Everything is scoped to .snake-demo.
+   Colours use the host page's tokens when present (alexkozik.com names them --color-*),
+   with standalone fallbacks; dark mode follows a .dark class on <html>. */
+.snake-demo {
+  --sd-bg: var(--color-bg-elev, #ffffff);
+  --sd-board: var(--color-bg, #faf9f5);
+  --sd-fg: var(--color-fg, #2b2a26);
+  --sd-muted: var(--color-fg-muted, #5e5d59);
+  --sd-faint: var(--color-fg-faint, #8f8d86);
+  --sd-line: var(--color-line, #e3e0d6);
+  --sd-accent: var(--color-accent, #2f7a6b);
+  --sd-food: #e11d48;
+  --sd-mono: var(--font-mono, ui-monospace, "SF Mono", Menlo, monospace);
+  --sd-display: var(--font-display, Newsreader, Georgia, serif);
+
+  display: block;
+  background: var(--sd-bg);
+  border: 1px solid var(--sd-line);
+  border-radius: 12px;
+  padding: 16px;
+  color: var(--sd-fg);
+  font-size: 13px;
+  line-height: 1.45;
+}
+:root.dark .snake-demo { --sd-food: #fb7185; }
+@media (min-width: 640px) { .snake-demo { padding: 20px; } }
+
+.snake-demo button { font: inherit; color: inherit; margin: 0; }
+.snake-demo button:focus-visible { outline: 2px solid var(--sd-accent); outline-offset: 2px; }
+.snake-demo ul { list-style: none; margin: 0; padding: 0; }
+.snake-demo p { margin: 0; }
+.snake-demo [hidden] { display: none !important; }
+
+.snake-demo .sd-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+.snake-demo .sd-tabs button,
+.snake-demo .sd-pills button {
+  border: 1px solid var(--sd-line); background: none; border-radius: 999px; padding: 4px 12px;
+  font-size: 12px; font-weight: 500; line-height: 1.5; color: var(--sd-muted); cursor: pointer;
+  transition: border-color .15s, color .15s;
+}
+.snake-demo .sd-tabs button:hover,
+.snake-demo .sd-pills button:hover { border-color: var(--sd-accent); color: var(--sd-fg); }
+.snake-demo .sd-tabs button.sd-active { background: var(--sd-fg); border-color: var(--sd-fg); color: var(--sd-bg); }
+
+.snake-demo .sd-game { display: grid; gap: 20px; }
+@media (min-width: 640px) { .snake-demo .sd-game { grid-template-columns: minmax(0, 1fr) 11rem; } }
+
+.snake-demo .sd-board { position: relative; aspect-ratio: 1; }
+.snake-demo canvas { width: 100%; height: 100%; display: block; border-radius: 8px;
+  background: var(--sd-board); box-shadow: 0 0 0 1px var(--sd-line); }
+.snake-demo .sd-overlay {
+  position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 20px;
+  border-radius: 8px; background: color-mix(in srgb, var(--sd-board) 72%, transparent);
+  font-family: var(--sd-display); font-size: 20px; font-weight: 500; pointer-events: none;
+}
+.snake-demo .sd-overlay small { display: block; margin-top: 4px; font-family: inherit; font-size: 13px; color: var(--sd-faint); font-weight: 400; }
+.snake-demo .sd-start {
+  pointer-events: auto; display: block; margin: 14px auto 0; border: 0; border-radius: 999px;
+  background: var(--sd-fg); color: var(--sd-bg); padding: 9px 18px; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: opacity .15s;
+}
+.snake-demo .sd-start:hover { opacity: .85; }
+
+.snake-demo .sd-side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.snake-demo .sd-lbl { margin-bottom: 6px; font-size: 11px; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; color: var(--sd-faint); }
+.snake-demo .sd-snakes, .snake-demo .sd-probs { display: grid; gap: 4px; }
+.snake-demo .sd-snakes li { display: grid; grid-template-columns: 8px 1fr auto; gap: 8px; align-items: center; }
+.snake-demo .sd-snakes li.sd-dead { opacity: .4; }
+.snake-demo .sd-dot { width: 8px; height: 8px; border-radius: 999px; }
+.snake-demo .sd-len { font-family: var(--sd-mono); font-size: 12px; color: var(--sd-muted); }
+.snake-demo .sd-probs li { display: grid; grid-template-columns: 14px 1fr 30px; gap: 8px; align-items: center;
+  font-family: var(--sd-mono); font-size: 12px; color: var(--sd-muted); }
+.snake-demo .sd-pct { text-align: right; }
+.snake-demo .sd-track, .snake-demo .sd-meter { height: 6px; border-radius: 999px; background: var(--sd-line); overflow: hidden; position: relative; }
+.snake-demo .sd-track div { height: 100%; border-radius: 999px; background: var(--sd-faint); transition: width .1s linear; }
+.snake-demo .sd-probs li.sd-chosen { color: var(--sd-fg); }
+.snake-demo .sd-probs li.sd-chosen .sd-track div { background: var(--sd-accent); }
+.snake-demo .sd-value { display: grid; grid-template-columns: 1fr 38px; gap: 8px; align-items: center; }
+.snake-demo .sd-meter::after { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--sd-faint); }
+.snake-demo [data-sd="value-bar"] { position: absolute; top: 0; bottom: 0; background: var(--sd-accent); border-radius: 999px; }
+.snake-demo [data-sd="value-text"] { font-family: var(--sd-mono); font-size: 12px; text-align: right; color: var(--sd-muted); }
+.snake-demo .sd-pills { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.snake-demo .sd-stepper span { font-size: 12px; color: var(--sd-muted); min-width: 62px; text-align: center; }
+.snake-demo .sd-stepper button { width: 26px; padding: 4px 0; }
+.snake-demo .sd-meta { font-size: 13px; color: var(--sd-faint); }
+
+.snake-demo .sd-dpad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 14px; }
+.snake-demo .sd-dpad button { border: 1px solid var(--sd-line); background: none; border-radius: 10px; padding: 10px 0; font-size: 18px; color: var(--sd-muted); }
+@media (hover: hover) and (pointer: fine) { .snake-demo .sd-dpad { display: none !important; } }
