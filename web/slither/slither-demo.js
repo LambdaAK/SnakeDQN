@@ -52,7 +52,7 @@ function loadOrt(src) {
     const script = document.createElement("script");
     script.src = src;
     script.onload = () => resolve(globalThis.ort);
-    script.onerror = () => reject(new Error("couldn't load ONNX Runtime"));
+    script.onerror = () => { ortPromise = null; script.remove(); reject(new Error("couldn't load ONNX Runtime")); };
     document.head.appendChild(script);
   });
   return ortPromise;
@@ -89,6 +89,7 @@ export function mountSlitherDemo(root, options = {}) {
   let game, prevHeads, plan, brain, follow;
   let acc = 0, last = performance.now(), frameNo = 0;
   let pointer = null, boostHeld = false;
+  let gen = 0, failed = false;
   let you = null; // { kills, ticks } for your current life in Play mode
 
   const heads = () => game.snakes.map((s) => (s.alive ? s.body[0].slice() : null));
@@ -105,6 +106,8 @@ export function mountSlitherDemo(root, options = {}) {
   }
 
   function newGame() {
+    gen++;
+    boostHeld = false;
     game = newArena(SLOTS, SNAKES, cfg);
     prevHeads = heads();
     plan = Array.from({ length: SLOTS }, () => ({ turn: 0, boost: false }));
@@ -125,7 +128,9 @@ export function mountSlitherDemo(root, options = {}) {
     const D = obsSize(cfg);
     const data = new Float32Array(ai.length * D);
     ai.forEach((k, r) => data.set(observe(game, k, cfg), r * D));
+    const g = gen;
     const out = await session.run({ obs: new globalThis.ort.Tensor("float32", data, [ai.length, D]) });
+    if (g !== gen) return; // the game was restarted while the network was thinking
     const logits = out.logits.data, value = out.value.data;
     ai.forEach((k, r) => {
       const probs = maskedSoftmax(Array.from(logits.subarray(r * 18, r * 18 + 18)), actionMask(game, k, cfg));
@@ -148,7 +153,9 @@ export function mountSlitherDemo(root, options = {}) {
   }
 
   async function tick() {
+    const g = gen;
     if (game.tick % cfg.ticks_per_decision === 0) await decide();
+    if (g !== gen) return false;
     const turns = plan.map((p) => p.turn), boosts = plan.map((p) => p.boost);
     if (mode === "play" && game.snakes[HUMAN].alive) {
       turns[HUMAN] = humanTurn();
@@ -164,6 +171,7 @@ export function mountSlitherDemo(root, options = {}) {
       if (ev.died[HUMAN]) onHumanDeath();
     }
     if (!game.snakes[follow]?.alive) follow = biggest();
+    return true;
   }
 
   function onHumanDeath() {
@@ -186,7 +194,7 @@ export function mountSlitherDemo(root, options = {}) {
   async function advance() {
     let n = 0;
     while (acc >= tickMs && n < MAX_CATCH_UP) {
-      await tick();
+      if (!(await tick())) { acc = 0; break; }
       acc -= tickMs;
       n++;
     }
@@ -197,12 +205,16 @@ export function mountSlitherDemo(root, options = {}) {
     requestAnimationFrame(frame); // first, so a drawing error can never stop the loop
     const dt = Math.min(now - last, 250);
     last = now;
-    const running = started && session && !paused && visible;
+    const running = started && session && !paused && visible && !failed;
     if (running) {
       acc += dt;
       if (!busy) {
         busy = true;
-        advance().catch((err) => showOverlay("Something went wrong", String(err.message ?? err)))
+        advance().catch((err) => {
+          failed = true;
+          showOverlay("Something went wrong", String(err.message ?? err),
+            { label: "Retry", run: () => { failed = false; acc = 0; hideOverlay(); newGame(); } });
+        })
           .finally(() => { busy = false; });
       }
     }
@@ -278,13 +290,14 @@ export function mountSlitherDemo(root, options = {}) {
       hideOverlay();
       return true;
     } catch (err) {
-      showOverlay("Couldn't load the network", String(err.message ?? err));
+      showOverlay("Couldn't load the network", String(err.message ?? err), { label: "Retry", run: () => start() });
       return false;
     }
   }
 
   function selectMode(next) {
     mode = next;
+    boostHeld = false;
     tabs.forEach((b) => b.classList.toggle("sl-active", b.dataset.mode === mode));
     root.classList.toggle("sl-playing", mode === "play");
     $("boost").hidden = !(mode === "play" && coarse);
@@ -321,7 +334,7 @@ export function mountSlitherDemo(root, options = {}) {
   canvas.addEventListener("pointermove", (e) => { pointer = toCanvas(e); });
   canvas.addEventListener("pointerdown", (e) => {
     pointer = toCanvas(e);
-    if (mode === "play" && e.pointerType === "mouse") boostHeld = true;
+    if (mode === "play" && e.pointerType === "mouse" && e.button === 0) boostHeld = true;
     if (mode === "watch") pickSnake(pointer);
   });
   window.addEventListener("pointerup", () => { boostHeld = false; });
@@ -338,6 +351,8 @@ export function mountSlitherDemo(root, options = {}) {
     e.preventDefault();
     boostHeld = true;
   });
+  window.addEventListener("blur", () => { boostHeld = false; });
+  document.addEventListener("visibilitychange", () => { if (document.hidden) boostHeld = false; });
   window.addEventListener("keyup", (e) => { if (e.code === "Space") boostHeld = false; });
   $("restart").addEventListener("click", () => { if (started) newGame(); });
   $("pause").addEventListener("click", () => {
