@@ -19,6 +19,9 @@ const overlay = $("overlay");
 let session = null;
 let mode = "watch";
 let game = null;
+let prev = null; // state before the latest turn, for animating between turns
+let lastTick = 0;
+let tickDelay = 300;
 let paused = false;
 let busy = false;
 let timer = null;
@@ -35,27 +38,28 @@ if (new URLSearchParams(location.search).has("embed")) document.body.classList.a
 function startGame() {
   clearTimeout(restartTimer);
   game = newGame(BOARD, 2);
+  prev = structuredClone(game);
+  lastTick = performance.now();
   brain = { probs: null, value: null, chosen: -1 };
   humanQueue = [];
   waitingForHuman = MODES[mode].controllers.includes("human");
   $("dpad").hidden = mode !== "play";
   if (waitingForHuman) {
-    showOverlay("Press an arrow key or WASD to start", "On a phone, use the buttons below the board");
+    showOverlay("Press an arrow key, or click where you want to go", "Your snake (blue) keeps moving; steer with arrows, WASD, clicks or swipes");
   } else {
     hideOverlay();
   }
-  render();
   updatePanel();
   schedule();
 }
 
 function schedule() {
   clearTimeout(timer);
-  const delay = 440 - Number($("speed").value);
+  tickDelay = 440 - Number($("speed").value);
   timer = setTimeout(async () => {
     await tick();
     if (!game.over) schedule();
-  }, delay);
+  }, tickDelay);
 }
 
 async function tick() {
@@ -63,13 +67,15 @@ async function tick() {
   busy = true;
   try {
     const actions = await chooseActions();
+    prev = structuredClone(game);
     step(game, actions);
+    lastTick = performance.now();
   } finally {
     busy = false;
   }
-  render();
   updatePanel();
-  if (game.over) onGameOver();
+  // Let the final move finish animating before announcing the result.
+  if (game.over) restartTimer = setTimeout(onGameOver, tickDelay);
 }
 
 async function chooseActions() {
@@ -175,10 +181,11 @@ function resizeCanvas() {
   const size = canvas.getBoundingClientRect().width;
   canvas.width = Math.round(size * dpr);
   canvas.height = Math.round(size * dpr);
-  render();
 }
 
-function render() {
+// Draws every animation frame. Game logic advances in whole turns; between turns each
+// snake slides from its previous cells (`prev`) to its current ones (`game`) by t in [0, 1].
+function render(t) {
   if (!game) return;
   const W = canvas.width, cell = W / BOARD;
   ctx.clearRect(0, 0, W, W);
@@ -189,54 +196,79 @@ function render() {
     }
   }
   for (let i = 0; i < BOARD * BOARD; i++) {
-    if (!game.food[i]) continue;
+    const now = game.food[i], before = prev.food[i];
+    if (!now && !before) continue;
+    let scale = 1;
+    if (now && !before) scale = easeOutBack(Math.min(1, t * 1.4)); // new food pops in
+    if (!now && before) scale = t < 0.55 ? 1 : Math.max(0, 1 - (t - 0.55) / 0.3); // eaten
+    if (scale <= 0) continue;
     const r = Math.floor(i / BOARD), c = i % BOARD;
     ctx.save();
     ctx.shadowColor = "#f43f5e";
     ctx.shadowBlur = cell * 0.5;
     ctx.fillStyle = "#f43f5e";
     ctx.beginPath();
-    ctx.arc((c + 0.5) * cell, (r + 0.5) * cell, cell * 0.24, 0, Math.PI * 2);
+    ctx.arc((c + 0.5) * cell, (r + 0.5) * cell, cell * 0.24 * scale, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }
-  game.snakes.forEach((snake, i) => drawSnake(snake, COLORS[i], cell));
+  game.snakes.forEach((snake, i) => drawSnake(prev.snakes[i], snake, COLORS[i], cell, t));
 }
 
-function drawSnake(snake, color, cell) {
-  const onBoard = ([r, c]) => r >= 0 && r < BOARD && c >= 0 && c < BOARD;
-  const body = snake.body;
-  ctx.save();
-  ctx.globalAlpha = snake.alive ? 1 : 0.3;
-  ctx.fillStyle = color;
-  const width = cell * 0.66;
-  for (let j = body.length - 1; j > 0; j--) {
-    const a = body[j], b = body[j - 1];
-    if (!onBoard(a) || !onBoard(b) || (a[0] === b[0] && a[1] === b[1])) continue;
-    ctx.fillStyle = mix(color, "#0e1426", 0.45 * (j / body.length));
-    const x = Math.min(a[1], b[1]) * cell + (cell - width) / 2;
-    const y = Math.min(a[0], b[0]) * cell + (cell - width) / 2;
-    const w = Math.abs(a[1] - b[1]) * cell + width;
-    const h = Math.abs(a[0] - b[0]) * cell + width;
-    roundRect(x, y, w, h, width * 0.35);
+const lerp = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+const easeInOut = (t) => t * t * (3 - 2 * t);
+function easeOutBack(t) {
+  const c = 1.7;
+  return 1 + (c + 1) * (t - 1) ** 3 + c * (t - 1) ** 2;
+}
+
+// Points along the body at fraction t of the current turn: the head slides from its old
+// cell to its new one, the middle sits on cell centres, and the tail slides after it.
+function bodyPoints(before, after, t) {
+  const a = before.body, b = after.body;
+  if (a === b || !before.alive) return b.slice();
+  const points = [lerp(a[0], b[0], t)];
+  for (let j = 1; j < b.length - 1; j++) points.push(b[j]);
+  if (b.length > 1) points.push(lerp(a[a.length - 1], b[b.length - 1], t));
+  return points;
+}
+
+function drawSnake(before, snake, color, cell, t) {
+  const died = before.alive && !snake.alive;
+  if (!snake.alive && !died) {
+    ctx.globalAlpha = 0.25;
+  } else {
+    ctx.globalAlpha = died ? 1 - 0.7 * t : 1;
   }
-  ctx.fillStyle = color;
-  const head = body[0];
-  if (onBoard(head)) {
-    const size = cell * 0.82;
-    roundRect(head[1] * cell + (cell - size) / 2, head[0] * cell + (cell - size) / 2, size, size, size * 0.32);
-    const dir = heading(snake);
-    const [dr, dc] = dir >= 0 ? DIRECTIONS[dir] : [-1, 0];
-    const cx = (head[1] + 0.5) * cell, cy = (head[0] + 0.5) * cell;
-    const fwd = cell * 0.16, side = cell * 0.17;
-    ctx.fillStyle = "#0b1020";
-    for (const s of [-1, 1]) {
-      ctx.beginPath();
-      ctx.arc(cx + dc * fwd + dr * side * s, cy + dr * fwd + dc * side * s, cell * 0.075, 0, Math.PI * 2);
-      ctx.fill();
-    }
+  const s = easeInOut(t);
+  const points = bodyPoints(before, snake, s).map(([r, c]) => [(c + 0.5) * cell, (r + 0.5) * cell]);
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.lineWidth = cell * 0.64;
+  // Body: one continuous rounded stroke, a slightly darker shade toward the tail.
+  for (let j = points.length - 1; j > 0; j--) {
+    ctx.strokeStyle = mix(color, "#0e1426", 0.4 * (j / points.length));
+    ctx.beginPath();
+    ctx.moveTo(points[j][0], points[j][1]);
+    ctx.lineTo(points[j - 1][0], points[j - 1][1]);
+    ctx.stroke();
   }
-  ctx.restore();
+  // Head with eyes looking along the direction of travel.
+  const [hx, hy] = points[0];
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(hx, hy, cell * 0.4, 0, Math.PI * 2);
+  ctx.fill();
+  const dir = heading(snake);
+  const [dr, dc] = dir >= 0 ? DIRECTIONS[dir] : [-1, 0];
+  const fwd = cell * 0.14, side = cell * 0.17;
+  ctx.fillStyle = "#0b1020";
+  for (const k of [-1, 1]) {
+    ctx.beginPath();
+    ctx.arc(hx + dc * fwd + dr * side * k, hy + dr * fwd + dc * side * k, cell * 0.075, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
 }
 
 // Blend hex colour a toward b by t (0..1), so body shading never stacks like alpha does.
@@ -246,10 +278,10 @@ function mix(a, b, t) {
   return `rgb(${x.map((v, i) => Math.round(v + (y[i] - v) * t)).join(",")})`;
 }
 
-function roundRect(x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.roundRect(x, y, w, h, r);
-  ctx.fill();
+function frame(now) {
+  const t = paused ? 1 : Math.min(1, (now - lastTick) / tickDelay);
+  render(t);
+  requestAnimationFrame(frame);
 }
 
 function showOverlay(title, sub = "") {
@@ -383,11 +415,24 @@ canvas.addEventListener("touchend", (e) => {
   if (Math.max(Math.abs(dx), Math.abs(dy)) > 24) onDirection(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 3 : 2) : (dy > 0 ? 1 : 0));
   touchStart = null;
 });
+// Click / tap steering: turn toward the clicked spot, relative to your snake's head.
+canvas.addEventListener("click", (e) => {
+  if (mode !== "play" || !game) return;
+  const rect = canvas.getBoundingClientRect();
+  const cell = rect.width / BOARD;
+  const [hr, hc] = game.snakes[1].body[0];
+  const dx = (e.clientX - rect.left) / cell - (hc + 0.5);
+  const dy = (e.clientY - rect.top) / cell - (hr + 0.5);
+  if (Math.max(Math.abs(dx), Math.abs(dy)) < 0.5) return;
+  onDirection(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 3 : 2) : (dy > 0 ? 1 : 0));
+});
 window.addEventListener("resize", resizeCanvas);
 
 async function init() {
   game = newGame(BOARD, 2);
+  prev = structuredClone(game);
   resizeCanvas();
+  requestAnimationFrame(frame);
   updatePanel();
   showOverlay("Loading neural network…");
   loadStats();
