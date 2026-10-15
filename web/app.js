@@ -1,4 +1,4 @@
-import { actionMask, DIRECTIONS, greedyAction, newGame, NUM_CHANNELS, observation, step } from "./rules.js?v=3";
+import { actionMask, DIRECTIONS, greedyAction, newGame, NUM_CHANNELS, observation, step } from "./rules.js?v=4";
 
 const BOARD = 11;
 const COLORS = ["#f59e0b", "#38bdf8"];
@@ -232,7 +232,9 @@ function bodyPoints(before, after, t) {
   const a = before.body, b = after.body;
   if (a === b || !before.alive) return b.slice();
   const points = [lerp(a[0], b[0], t)];
-  for (let j = 1; j < b.length - 1; j++) points.push(b[j]);
+  // Keep every current cell, including the one the tail is moving into, so the tail
+  // bends through corners instead of cutting across them diagonally.
+  for (let j = 1; j < b.length; j++) points.push(b[j]);
   if (b.length > 1) points.push(lerp(a[a.length - 1], b[b.length - 1], t));
   return points;
 }
