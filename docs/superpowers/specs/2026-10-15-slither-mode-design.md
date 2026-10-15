@@ -197,7 +197,7 @@ the nearest object in that sector within `V`, and 0 if there is none. The 8 chan
 sector are:
 
 1. **wall:** the analytic distance from the head to the arena boundary along the
-   sector's centre ray;
+   sector's centre ray (angle `−π + q·w` relative to the heading);
 2. **enemy body:** the nearest point of any other live snake, measured to its surface
    (`d − r_j`);
 3. **enemy size:** the largest radius among enemy points seen in the sector, `/ 15`;
@@ -216,8 +216,11 @@ Then 7 scalars:
 - `|head|/R`;
 - the bearing to the arena centre as `cos` and `sin`.
 
-Sector index is `floor((atan2(rel) + π) / (2π/32)) mod 32`, after rotating into the
-heading frame. Points are binned by angle, so the cost is O(heads × nearby points), not
+Sector index is `floor((atan2(rel) + π + w/2) / w) mod 32` with `w = 2π/32`, after
+rotating into the heading frame, so sector 16 is centred straight ahead and sector 0
+straight behind. (Ahead and behind are sector centres, never boundaries: a straight
+body lies exactly behind the head, and a boundary there would let one-ulp differences
+between implementations flip its sector.) Points are binned by angle, so the cost is O(heads × nearby points), not
 O(rays × points). Dead or disabled slots get an all-zero observation.
 
 **Reward.**
