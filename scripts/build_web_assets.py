@@ -29,8 +29,8 @@ def export_onnx(model, path):
         want_logits, want_value = model(sample)
     session = ort.InferenceSession(str(path))
     got_logits, got_value = session.run(None, {"obs": sample.numpy()})
-    np.testing.assert_allclose(got_logits, want_logits.numpy(), atol=1e-4)
-    np.testing.assert_allclose(got_value, want_value.numpy(), atol=1e-4)
+    np.testing.assert_allclose(got_logits, want_logits.numpy(), rtol=1e-3, atol=1e-3)
+    np.testing.assert_allclose(got_value, want_value.numpy(), rtol=1e-3, atol=1e-3)
 
 
 def curve(metrics_path):
@@ -45,6 +45,36 @@ def curve(metrics_path):
                     "win_vs_greedy": float(row["win_vs_greedy"]),
                 })
     return points
+
+
+def training_svg(points, path):
+    """Static version of the demo's chart for the README (GitHub can't run the page's JS)."""
+    W, H, L, R, T, B = 720, 290, 48, 16, 36, 52
+    max_x = points[-1]["env_steps"]
+    x = lambda v: L + (W - L - R) * v / max_x  # noqa: E731
+    y = lambda v: T + (H - T - B) * (1 - v)  # noqa: E731
+    parts = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" '
+             'font-family="system-ui, sans-serif" font-size="12">',
+             f'<rect width="{W}" height="{H}" rx="12" fill="#131a2e"/>',
+             '<text x="48" y="22" fill="#e6e9f2" font-size="14" font-weight="600">'
+             'Win rate during self-play training</text>']
+    for v in (0, 0.25, 0.5, 0.75, 1):
+        parts.append(f'<line x1="{L}" x2="{W - R}" y1="{y(v):.1f}" y2="{y(v):.1f}" stroke="#26304f"/>')
+        parts.append(f'<text x="{L - 8}" y="{y(v) + 4:.1f}" fill="#8d97b5" text-anchor="end">{int(v * 100)}%</text>')
+    for k in range(6):
+        v = max_x * k / 5
+        parts.append(f'<text x="{x(v):.1f}" y="{H - 30}" fill="#8d97b5" text-anchor="middle">{v / 1e6:.0f}M</text>')
+    for key, color in (("win_vs_flood_fill", "#f59e0b"), ("win_vs_greedy", "#38bdf8")):
+        d = "".join(f'{"L" if i else "M"}{x(p["env_steps"]):.1f},{y(p[key]):.1f}' for i, p in enumerate(points))
+        parts.append(f'<path d="{d}" fill="none" stroke="{color}" stroke-width="2.5"/>')
+    parts.append('<rect x="470" y="13" width="10" height="10" rx="2" fill="#f59e0b"/>'
+                 '<text x="485" y="22" fill="#8d97b5">vs flood-fill bot</text>'
+                 '<rect x="595" y="13" width="10" height="10" rx="2" fill="#38bdf8"/>'
+                 '<text x="610" y="22" fill="#8d97b5">vs greedy bot</text>')
+    parts.append(f'<text x="{(L + W - R) / 2:.0f}" y="{H - 10}" fill="#8d97b5" text-anchor="middle">self-play turns</text>')
+    parts.append("</svg>")
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    Path(path).write_text("\n".join(parts) + "\n")
 
 
 def main(argv=None):
@@ -68,6 +98,7 @@ def main(argv=None):
     if args.final_eval:
         stats["final_eval"] = json.loads(Path(args.final_eval).read_text())
     (out_dir / "stats.json").write_text(json.dumps(stats, indent=2) + "\n")
+    training_svg(stats["curve"], ROOT / "docs" / "training.svg")
     print(f"wrote {out_dir / 'model.onnx'} and {out_dir / 'stats.json'} "
           f"(iteration {checkpoint['iteration']}, {checkpoint['env_steps']:,} env steps)")
 

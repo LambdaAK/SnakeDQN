@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 290" font-family="system-ui, sans-serif" font-size="12">
+<rect width="720" height="290" rx="12" fill="#131a2e"/>
+<text x="48" y="22" fill="#e6e9f2" font-size="14" font-weight="600">Win rate during self-play training</text>
+<line x1="48" x2="704" y1="238.0" y2="238.0" stroke="#26304f"/>
+<text x="40" y="242.0" fill="#8d97b5" text-anchor="end">0%</text>
+<line x1="48" x2="704" y1="187.5" y2="187.5" stroke="#26304f"/>
+<text x="40" y="191.5" fill="#8d97b5" text-anchor="end">25%</text>
+<line x1="48" x2="704" y1="137.0" y2="137.0" stroke="#26304f"/>
+<text x="40" y="141.0" fill="#8d97b5" text-anchor="end">50%</text>
+<line x1="48" x2="704" y1="86.5" y2="86.5" stroke="#26304f"/>
+<text x="40" y="90.5" fill="#8d97b5" text-anchor="end">75%</text>
+<line x1="48" x2="704" y1="36.0" y2="36.0" stroke="#26304f"/>
+<text x="40" y="40.0" fill="#8d97b5" text-anchor="end">100%</text>
+<text x="48.0" y="260" fill="#8d97b5" text-anchor="middle">0M</text>
+<text x="179.2" y="260" fill="#8d97b5" text-anchor="middle">7M</text>
+<text x="310.4" y="260" fill="#8d97b5" text-anchor="middle">15M</text>
+<text x="441.6" y="260" fill="#8d97b5" text-anchor="middle">22M</text>
+<text x="572.8" y="260" fill="#8d97b5" text-anchor="middle">29M</text>
+<text x="704.0" y="260" fill="#8d97b5" text-anchor="middle">36M</text>
+<path d="M62.8,215.8L77.6,210.7L92.4,191.5L107.2,161.2L121.9,142.1L136.7,118.8L151.5,110.7L166.3,109.7L181.1,94.6L195.9,106.7L210.7,82.5L225.5,77.4L240.2,76.4L255.0,81.4L269.8,78.4L284.6,66.3L299.4,69.3L314.2,71.4L329.0,63.3L343.8,70.3L358.6,66.3L373.3,66.3L388.1,67.3L402.9,68.3L417.7,63.3L432.5,68.3L447.3,51.1L462.1,57.2L476.9,64.3L491.6,61.2L506.4,68.3L521.2,54.2L536.0,58.2L550.8,53.2L565.6,55.2L580.4,63.3L595.2,49.1L609.9,54.2L624.7,61.2L639.5,50.1L654.3,48.1L669.1,59.2L683.9,57.2L698.7,59.2L704.0,60.2" fill="none" stroke="#f59e0b" stroke-width="2.5"/>
+<path d="M62.8,129.9L77.6,126.9L92.4,135.0L107.2,121.9L121.9,91.6L136.7,71.4L151.5,66.3L166.3,71.4L181.1,55.2L195.9,70.3L210.7,78.4L225.5,75.4L240.2,66.3L255.0,88.5L269.8,79.4L284.6,77.4L299.4,61.2L314.2,64.3L329.0,78.4L343.8,67.3L358.6,70.3L373.3,67.3L388.1,61.2L402.9,62.3L417.7,74.4L432.5,79.4L447.3,66.3L462.1,67.3L476.9,60.2L491.6,74.4L506.4,70.3L521.2,63.3L536.0,57.2L550.8,62.3L565.6,61.2L580.4,69.3L595.2,62.3L609.9,56.2L624.7,73.4L639.5,68.3L654.3,57.2L669.1,68.3L683.9,61.2L698.7,71.4L704.0,61.2" fill="none" stroke="#38bdf8" stroke-width="2.5"/>
+<rect x="470" y="13" width="10" height="10" rx="2" fill="#f59e0b"/><text x="485" y="22" fill="#8d97b5">vs flood-fill bot</text><rect x="595" y="13" width="10" height="10" rx="2" fill="#38bdf8"/><text x="610" y="22" fill="#8d97b5">vs greedy bot</text>
+<text x="376" y="280" fill="#8d97b5" text-anchor="middle">self-play turns</text>
+</svg>

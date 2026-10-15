@@ -1,0 +1,22 @@
+{
+  "games": 1000,
+  "seed": 12345,
+  "win_vs_flood_fill": 0.914,
+  "draw_vs_flood_fill": 0.004,
+  "ci_vs_flood_fill": [
+    0.8949995893100292,
+    0.9298317386604397
+  ],
+  "win_vs_greedy": 0.902,
+  "draw_vs_greedy": 0.064,
+  "ci_vs_greedy": [
+    0.8820049011851514,
+    0.9189182723513907
+  ],
+  "win_vs_safe_random": 0.994,
+  "draw_vs_safe_random": 0.002,
+  "ci_vs_safe_random": [
+    0.9869716557675544,
+    0.9972473684290918
+  ]
+}

@@ -1,63 +1,89 @@
-# Snake RL
+# Snake, learned by playing itself
 
-Multi-agent Snake as a reinforcement-learning testbed. The end goal is agents trained by
-**self-play** against past versions of themselves, ranked by Elo and playable in the
-browser. This repository is being built in stages:
+A neural network that learned two-player [Battlesnake](https://play.battlesnake.com) purely
+through **self-play reinforcement learning**. It never saw a human game. It runs live in
+the browser, where you can watch it play itself or try to beat it.
 
-1. **Foundation** (done): a fast, tested, batched Battlesnake environment, scripted
-   baseline bots and an evaluation harness.
-2. Algorithm benchmark: DQN through Rainbow components, and PPO, compared across seeds.
-3. Self-play league with Elo tracking.
-4. Browser demo with the trained agents.
-5. Write-up of the results.
+**[▶ Play the live demo](https://lambdaak.github.io/SnakeDQN/)**
 
-## Quick start
+![Two copies of the trained network playing each other](docs/selfplay.gif)
+
+## Results
+
+The final network, evaluated over 1,000 fresh games against each hand-written bot
+(11×11 board, 95% Wilson confidence intervals):
+
+| Opponent | Win | Draw | Loss |
+|---|---|---|---|
+| Flood-fill bot (strongest scripted: space-aware, avoids losing head-to-heads) | **91.4%** (89.5–93.0) | 0.4% | 8.2% |
+| Greedy bot (chases the nearest food safely) | **90.2%** (88.2–91.9) | 6.4% | 3.4% |
+| Safe-random bot | **99.4%** (98.7–99.7) | 0.2% | 0.4% |
+
+For reference, flood-fill beats greedy only 74% of the time. The network learned from
+nothing but a +1/−1 win/loss signal, plus a small bonus for eating. It ended up clearly
+stronger than both hand-written strategies after about 34M self-play turns, which took
+2.5 hours on a laptop (Apple M3 Max).
+
+![Win rate over training](docs/training.svg)
+
+## How it works
+
+**1. A fast, verified simulator.** `snake_rl/env` implements the standard Battlesnake
+rules in vectorised NumPy: simultaneous moves, health, growth, and head-to-head collisions
+won by the longer snake. It steps 1,024 games at once at over 200,000 turns per second.
+- Every rule has a unit test.
+- The batched engine is checked move for move against an independent, deliberately
+  simple reference implementation.
+- Batched results match one-game-at-a-time results exactly.
+
+**2. Self-play PPO.** `scripts/train_selfplay.py` trains a convolutional actor-critic (2M
+parameters).
+- **Input:** the board as 8 egocentric feature planes: own head, body and body age;
+  enemy heads and bodies; enemy heads that would win a head-on collision; food; and health.
+- **Opponents:** in 70% of games the network plays itself, and both seats generate
+  training data. The rest are against a pool of frozen past versions, so it can't forget
+  how to beat older strategies.
+- **Illegal moves:** moves that would hit a wall or a body are masked out.
+- **Checkpoints:** every 25 iterations the network is tested against the scripted bots,
+  and the best checkpoint is kept.
+
+**3. In the browser.** The network is exported to ONNX and runs client-side with ONNX
+Runtime Web (`web/`). The rules are ported to JavaScript and checked against thousands of
+Python-generated game steps (`tests/test_js_parity.py`), so the demo is exactly the game
+the network trained on. The side panel shows the network's move probabilities and value
+estimate live.
+
+## Run it yourself
 
 ```bash
-uv run pytest                                          # full test suite
-uv run python scripts/play.py --opponent flood_fill    # play against a bot (WASD)
-uv run python scripts/evaluate.py flood_fill greedy    # bot vs bot, 500 games
-uv run python scripts/benchmark_env.py                 # environment throughput
+uv run pytest                                                   # test suite
+uv run python scripts/play.py --opponent flood_fill             # terminal play vs a bot
+uv run python scripts/evaluate.py flood_fill greedy             # bot vs bot, 500 games
+
+uv sync --group train                                           # PyTorch + ONNX
+uv run --group train python scripts/train_selfplay.py --device mps --hours 2.5
+uv run --group train python scripts/final_eval.py runs/selfplay/best.pt --games 1000
+uv run --group train python scripts/build_web_assets.py --run-dir runs/selfplay \
+    --final-eval results/ppo_selfplay.summary.json             # -> web/model.onnx, web/stats.json
+python3 -m http.server --directory web 8000                     # demo at localhost:8000
 ```
 
-## Environment
+To embed the demo on another site, add `?embed=1` to the URL for a compact
+board-and-panel view:
 
-`SnakeEnv` steps many games at once, with every game's state held in NumPy arrays:
-
-```python
-from snake_rl.env import SnakeEnv
-
-env = SnakeEnv(num_envs=1024, num_snakes=2)       # standard 11x11 Battlesnake
-obs, info = env.reset()                           # obs: (1024, 2, 8, 11, 11)
-obs, rewards, dones, info = env.step(actions)     # actions: (1024, 2) in {up, down, left, right}
+```html
+<iframe src="https://lambdaak.github.io/SnakeDQN/?embed=1" width="100%" height="760" style="border:0"></iframe>
 ```
-
-- **Rules:** standard Battlesnake: simultaneous moves, health 100 that ticks down each turn,
-  growth on eating, head-to-head collisions won by the longer snake, food spawning.
-- **Observations:** egocentric 8-channel grids. These show own head, body and body age,
-  enemy heads and bodies, dangerous enemy heads, food, and health. No hand-made features.
-- **Speed:** about 214,000 env steps/sec on an Apple Silicon CPU (1024 games, 2 snakes).
-- **Correctness:** each rule has a unit test; the batched rules are checked step-by-step
-  against a slow reference implementation, and batched results match one-game-at-a-time
-  results exactly.
-
-## Baselines (500 games each, 11x11)
-
-| Matchup | Win rate of first bot |
-|---|---|
-| flood_fill vs greedy | 74.0% |
-| greedy vs safe_random | 80.2% |
-| safe_random vs random | 99.6% |
-
-The Hamiltonian-cycle bot fills an 8x8 board every game, a reference point for perfect
-single-snake play. Raw results, with 95% confidence intervals, are in `results/`.
 
 ## Layout
 
 ```
-snake_rl/env/        rules, observations, rewards, SnakeEnv, renderer
+snake_rl/env/        rules, observations, rewards, batched SnakeEnv, terminal renderer
 snake_rl/baselines/  random, safe_random, greedy, flood_fill, hamiltonian bots
+snake_rl/agents/     CNN actor-critic and a policy wrapper for the evaluation harness
 snake_rl/eval/       match runner with confidence intervals
-scripts/             play, evaluate, benchmark
-tests/               pytest suite (run in CI)
+scripts/             train, evaluate, export, play, benchmark, render GIF
+web/                 browser demo (static; deployed to GitHub Pages)
+results/             evaluation JSON and the full training log
+tests/               pytest suite, including Python ↔ JavaScript rule parity
 ```

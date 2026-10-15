@@ -213,14 +213,14 @@ function drawSnake(snake, color, cell) {
   for (let j = body.length - 1; j > 0; j--) {
     const a = body[j], b = body[j - 1];
     if (!onBoard(a) || !onBoard(b) || (a[0] === b[0] && a[1] === b[1])) continue;
-    ctx.globalAlpha = (snake.alive ? 1 : 0.3) * (0.55 + 0.45 * (1 - j / body.length));
+    ctx.fillStyle = mix(color, "#0e1426", 0.45 * (j / body.length));
     const x = Math.min(a[1], b[1]) * cell + (cell - width) / 2;
     const y = Math.min(a[0], b[0]) * cell + (cell - width) / 2;
     const w = Math.abs(a[1] - b[1]) * cell + width;
     const h = Math.abs(a[0] - b[0]) * cell + width;
     roundRect(x, y, w, h, width * 0.35);
   }
-  ctx.globalAlpha = snake.alive ? 1 : 0.3;
+  ctx.fillStyle = color;
   const head = body[0];
   if (onBoard(head)) {
     const size = cell * 0.82;
@@ -237,6 +237,13 @@ function drawSnake(snake, color, cell) {
     }
   }
   ctx.restore();
+}
+
+// Blend hex colour a toward b by t (0..1), so body shading never stacks like alpha does.
+function mix(a, b, t) {
+  const p = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const [x, y] = [p(a), p(b)];
+  return `rgb(${x.map((v, i) => Math.round(v + (y[i] - v) * t)).join(",")})`;
 }
 
 function roundRect(x, y, w, h, r) {

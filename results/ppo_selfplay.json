@@ -1,0 +1,125 @@
+{
+  "summary": {
+    "games": 1000,
+    "seed": 12345,
+    "win_vs_flood_fill": 0.914,
+    "draw_vs_flood_fill": 0.004,
+    "ci_vs_flood_fill": [
+      0.8949995893100292,
+      0.9298317386604397
+    ],
+    "win_vs_greedy": 0.902,
+    "draw_vs_greedy": 0.064,
+    "ci_vs_greedy": [
+      0.8820049011851514,
+      0.9189182723513907
+    ],
+    "win_vs_safe_random": 0.994,
+    "draw_vs_safe_random": 0.002,
+    "ci_vs_safe_random": [
+      0.9869716557675544,
+      0.9972473684290918
+    ]
+  },
+  "matches": {
+    "flood_fill": {
+      "n_games": 1000,
+      "board_size": 11,
+      "seed": 12345,
+      "mean_turns": 99.283,
+      "seats": [
+        {
+          "name": "ppo",
+          "wins": 914,
+          "draws": 4,
+          "losses": 82,
+          "win_rate": 0.914,
+          "win_rate_ci": [
+            0.8949995893100292,
+            0.9298317386604397
+          ],
+          "mean_length": 13.104
+        },
+        {
+          "name": "flood_fill",
+          "wins": 82,
+          "draws": 4,
+          "losses": 914,
+          "win_rate": 0.082,
+          "win_rate_ci": [
+            0.06655169717368087,
+            0.10064759004454163
+          ],
+          "mean_length": 12.474
+        }
+      ],
+      "score": null
+    },
+    "greedy": {
+      "n_games": 1000,
+      "board_size": 11,
+      "seed": 12345,
+      "mean_turns": 63.109,
+      "seats": [
+        {
+          "name": "ppo",
+          "wins": 902,
+          "draws": 64,
+          "losses": 34,
+          "win_rate": 0.902,
+          "win_rate_ci": [
+            0.8820049011851514,
+            0.9189182723513907
+          ],
+          "mean_length": 9.384
+        },
+        {
+          "name": "greedy",
+          "wins": 34,
+          "draws": 64,
+          "losses": 902,
+          "win_rate": 0.034,
+          "win_rate_ci": [
+            0.024431201022401962,
+            0.04713546846011402
+          ],
+          "mean_length": 10.513
+        }
+      ],
+      "score": null
+    },
+    "safe_random": {
+      "n_games": 1000,
+      "board_size": 11,
+      "seed": 12345,
+      "mean_turns": 36.674,
+      "seats": [
+        {
+          "name": "ppo",
+          "wins": 994,
+          "draws": 2,
+          "losses": 4,
+          "win_rate": 0.994,
+          "win_rate_ci": [
+            0.9869716557675544,
+            0.9972473684290918
+          ],
+          "mean_length": 8.312
+        },
+        {
+          "name": "safe_random",
+          "wins": 4,
+          "draws": 2,
+          "losses": 994,
+          "win_rate": 0.004,
+          "win_rate_ci": [
+            0.0015565629678934295,
+            0.010239720429805971
+          ],
+          "mean_length": 3.959
+        }
+      ],
+      "score": null
+    }
+  }
+}
