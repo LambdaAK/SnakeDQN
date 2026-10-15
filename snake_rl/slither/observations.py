@@ -1,7 +1,8 @@
 """Head-centred sector observation (spec §3): 32 sectors x 8 channels + 7 scalars.
 
 Everything is rotated into the snake's heading frame. A point's sector is
-floor((atan2(y', x') + pi) / (2 pi / K)) mod K; sector K/2 starts straight ahead and
+floor((atan2(y', x') + pi + w/2) / w) mod K, w = 2 pi / K; sector K/2 is centred straight ahead,
+sector 0 straight behind, and
 positive angles are to the left (counter-clockwise). tests/slither_reference.observe is
 the loop version; web/slither/observe.js ports it.
 """
@@ -28,7 +29,7 @@ def _close(d, vision):
 def _sector(rx, ry, c, sn, width, k):
     x = rx * c + ry * sn
     y = ry * c - rx * sn
-    return np.floor((np.arctan2(y, x) + np.pi) / width).astype(np.int64) % k
+    return np.floor((np.arctan2(y, x) + np.pi + width / 2) / width).astype(np.int64) % k
 
 
 def build_observations(state) -> np.ndarray:
@@ -47,7 +48,7 @@ def build_observations(state) -> np.ndarray:
     slots = np.arange(s)
 
     # 0: wall, along each sector's centre ray
-    th = state.heading[..., None] + (-np.pi + (np.arange(k) + 0.5) * width)
+    th = state.heading[..., None] + (-np.pi + np.arange(k) * width)
     dx, dy = np.cos(th), np.sin(th)
     b = hx[..., None] * dx + hy[..., None] * dy
     cc = (hx * hx + hy * hy - cfg.arena_radius * cfg.arena_radius)[..., None]

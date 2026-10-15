@@ -21,7 +21,7 @@ def obs_of(snap):
 
 def at(q, d):
     """A point at distance d along the centre of sector q, for an observer at the origin facing +x."""
-    a = -math.pi + (q + 0.5) * W
+    a = -math.pi + q * W
     return d * math.cos(a), d * math.sin(a)
 
 
@@ -37,11 +37,8 @@ def test_shape_dtype_and_dead_rows_are_zero():
 
 def test_wall_ahead():
     o = obs_of(scene([snake(straight(280.0, 0.0, 0.0, 40))]))[0]
-    phi = 0.5 * W  # centre of sector 16
-    b = 280.0 * math.cos(phi)
-    t = -b + math.sqrt(b * b - (280.0 ** 2 - 300.0 ** 2))
-    assert o[16 * C + 0] == pytest.approx(1 - t / V, abs=1e-6)
-    assert o[15 * C + 0] == pytest.approx(1 - t / V, abs=1e-6)
+    assert o[16 * C + 0] == pytest.approx(1 - 20.0 / V, abs=1e-6)  # sector 16 is straight ahead
+    assert o[15 * C + 0] == pytest.approx(o[17 * C + 0], abs=1e-6)
     assert o[0 * C + 0] == 0.0
     assert not obs_of(scene([me()]))[0][0:256:C].any()  # far from every wall
 
@@ -51,9 +48,9 @@ def test_enemy_body_size_and_head():
     o = obs_of(scene([me(), enemy]))[0]
     assert o[16 * C + 1] == pytest.approx(1 - (20.0 - R0) / V, abs=1e-6)
     assert o[16 * C + 2] == pytest.approx(R0 / 15, abs=1e-6)
-    assert o[20 * C + 5] == pytest.approx(1 - (math.hypot(20, 25) - R0) / V, abs=1e-6)
-    assert o[20 * C + 6] == pytest.approx(0.0, abs=1e-6)
-    assert o[20 * C + 7] == pytest.approx(1.0, abs=1e-6)
+    assert o[21 * C + 5] == pytest.approx(1 - (math.hypot(20, 25) - R0) / V, abs=1e-6)
+    assert o[21 * C + 6] == pytest.approx(0.0, abs=1e-6)
+    assert o[21 * C + 7] == pytest.approx(1.0, abs=1e-6)
 
 
 def test_own_body_skips_the_neck():
@@ -79,8 +76,8 @@ def _scene_rotated(alpha=0.0, extra_turns=0):
     def rot(p):
         return [p[0] * math.cos(alpha) - p[1] * math.sin(alpha), p[0] * math.sin(alpha) + p[1] * math.cos(alpha)]
     turn = 2 * math.pi * extra_turns
-    a = snake([rot(p) for p in straight(10.0, -20.0, 0.4, 40)], heading=0.5 + alpha + turn)
-    b = snake([rot(p) for p in straight(35.0, 5.0, 2.5, 60)], heading=2.6 + alpha + turn, mass=20.0)
+    a = snake([rot(p) for p in straight(10.0, -20.0, 0.4, 40)], heading=0.4 + alpha + turn)
+    b = snake([rot(p) for p in straight(35.0, 5.0, 2.5, 60)], heading=2.5 + alpha + turn, mass=20.0)
     food = [(*rot(p), v) for p, v in [((30.0, -10.0), 1.0), ((0.0, 0.0), 2.0), ((-15.0, -40.0), 1.0)]]
     return scene([a, b], food=food)
 

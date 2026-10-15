@@ -186,10 +186,10 @@ def observe(snap, k, cfg):
     def sector(rx, ry):
         x = rx * c + ry * sn
         y = ry * c - rx * sn
-        return math.floor((math.atan2(y, x) + math.pi) / width) % K
+        return math.floor((math.atan2(y, x) + math.pi + width / 2) / width) % K
 
     for q in range(K):
-        th = h + (-math.pi + (q + 0.5) * width)
+        th = h + (-math.pi + q * width)
         dx, dy = math.cos(th), math.sin(th)
         b = hx * dx + hy * dy
         cc = hx * hx + hy * hy - cfg.arena_radius * cfg.arena_radius
