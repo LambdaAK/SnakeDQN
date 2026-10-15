@@ -60,17 +60,21 @@ const TEMPLATE = `
     <button type="button" data-dir="3" aria-label="Right">→</button>
   </div>`;
 
-let ortPromise = null;
+// Shared through globalThis so several demos on one page fetch ONNX Runtime only once.
 function loadOrt(src) {
   if (globalThis.ort) return Promise.resolve(globalThis.ort);
-  ortPromise ??= new Promise((resolve, reject) => {
+  globalThis.__ortLoading ??= new Promise((resolve, reject) => {
     const script = document.createElement("script");
     script.src = src;
     script.onload = () => resolve(globalThis.ort);
-    script.onerror = () => reject(new Error("couldn't load ONNX Runtime"));
+    script.onerror = () => {
+      globalThis.__ortLoading = null;
+      script.remove();
+      reject(new Error("couldn't load ONNX Runtime"));
+    };
     document.head.appendChild(script);
   });
-  return ortPromise;
+  return globalThis.__ortLoading;
 }
 
 /**

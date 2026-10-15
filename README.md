@@ -5,7 +5,8 @@ Neural networks that learned [Battlesnake](https://play.battlesnake.com) purely 
 8 snakes. They never saw a human game, and they run live in the browser: watch them play,
 or try to beat one.
 
-**[▶ Play the live demo](https://lambdaak.github.io/SnakeDQN/)**
+**[▶ Play the live demo](https://alexkozik.com/snake/)**: watch AI vs AI, play against it, or
+run an arena of up to 8 snakes. Everything runs in your browser; there is no server.
 
 ![Two copies of the trained network playing each other](docs/selfplay.gif)
 
@@ -109,10 +110,11 @@ parameters).
 - **Checkpoints:** every 25 iterations the network is tested against the scripted bots,
   and the best checkpoint is kept.
 
-**3. In the browser.** The network is exported to ONNX and runs client-side with ONNX
-Runtime Web (`web/`). The rules are ported to JavaScript and checked against thousands of
-Python-generated game steps (`tests/test_js_parity.py`), so the demo is exactly the game
-the network trained on.
+**3. In the browser.** The networks are exported to ONNX and run client-side with ONNX
+Runtime Web. The rules are ported to JavaScript (`web/rules.js`) and checked against
+thousands of Python-generated game steps (`tests/test_js_parity.py`), so the demo is exactly
+the game the networks trained on. The game is drawn every animation frame, sliding the
+snakes between turns, so it moves smoothly even though the rules are turn-based.
 
 ## Run it yourself
 
@@ -133,12 +135,24 @@ uv run --group train python scripts/train_selfplay.py --run-dir runs/arena --boa
 python3 -m http.server --directory web 8000                     # demo at localhost:8000
 ```
 
-To embed the demo on another site, add `?embed=1` to the URL for a compact
-board-and-panel view:
+## Embedding the demo
 
-```html
-<iframe src="https://lambdaak.github.io/SnakeDQN/?embed=1" width="100%" height="760" style="border:0"></iframe>
+The demo is a self-contained component (`web/snake-demo.js` + `web/snake-demo.css`, plus
+`web/rules.js` and the two `.onnx` networks). Mount it into any element:
+
+```js
+import { mountSnakeDemo } from "./snake-demo.js";
+
+mountSnakeDemo(document.querySelector("#demo"), {
+  base: "/models/",   // where model.onnx and model_arena.onnx are served
+  autoLoad: false,    // show a "Load the AI" button instead of downloading 8 MB right away
+});
 ```
+
+Its styles are scoped to `.snake-demo` and read the host page's `--color-*` CSS variables
+(falling back to its own palette), so it follows the host's light and dark themes. It loads
+ONNX Runtime Web on demand and pauses while scrolled out of view. This is how it runs on
+[alexkozik.com/snake](https://alexkozik.com/snake/).
 
 ## Layout
 
@@ -148,7 +162,7 @@ snake_rl/baselines/  random, safe_random, greedy, flood_fill, hamiltonian bots
 snake_rl/agents/     CNN actor-critic and a policy wrapper for the evaluation harness
 snake_rl/eval/       match runner with confidence intervals
 scripts/             train, evaluate, export, play, benchmark, render GIF
-web/                 browser demo (static; deployed to GitHub Pages)
+web/                 browser demo: embeddable component, JS rules port, networks, page
 results/             evaluation JSON and the full training log
 tests/               pytest suite, including Python ↔ JavaScript rule parity
 ```
