@@ -1,0 +1,78 @@
+/* Slither demo component. Everything is scoped to .slither-demo.
+   Colours use the host page's tokens when present (alexkozik.com names them --color-*),
+   with standalone fallbacks; dark mode follows a .dark class on <html>. */
+.slither-demo {
+  --sl-bg: var(--color-bg-elev, #ffffff);
+  --sl-board: var(--color-bg, #faf9f5);
+  --sl-fg: var(--color-fg, #2b2a26);
+  --sl-muted: var(--color-fg-muted, #5e5d59);
+  --sl-faint: var(--color-fg-faint, #8f8d86);
+  --sl-line: var(--color-line, #e3e0d6);
+  --sl-accent: var(--color-accent, #2f7a6b);
+  --sl-wall: #e11d48;
+  --sl-mono: var(--font-mono, ui-monospace, "SF Mono", Menlo, monospace);
+  --sl-display: var(--font-display, Newsreader, Georgia, serif);
+
+  display: block;
+  background: var(--sl-bg);
+  border: 1px solid var(--sl-line);
+  border-radius: 12px;
+  padding: 16px;
+  color: var(--sl-fg);
+  font-size: 13px;
+  line-height: 1.45;
+}
+:root.dark .slither-demo { --sl-wall: #fb7185; }
+@media (min-width: 640px) { .slither-demo { padding: 20px; } }
+
+.slither-demo button { font: inherit; color: inherit; margin: 0; }
+.slither-demo button:focus-visible { outline: 2px solid var(--sl-accent); outline-offset: 2px; }
+.slither-demo ol { list-style: none; margin: 0; padding: 0; }
+.slither-demo p { margin: 0; }
+.slither-demo [hidden] { display: none !important; }
+
+.slither-demo .sl-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+.slither-demo .sl-tabs button,
+.slither-demo .sl-pills button {
+  border: 1px solid var(--sl-line); background: none; border-radius: 999px; padding: 4px 12px;
+  font-size: 12px; font-weight: 500; line-height: 1.5; color: var(--sl-muted); cursor: pointer;
+  transition: border-color .15s, color .15s;
+}
+.slither-demo .sl-tabs button:hover,
+.slither-demo .sl-pills button:hover { border-color: var(--sl-accent); color: var(--sl-fg); }
+.slither-demo .sl-tabs button.sl-active { background: var(--sl-fg); border-color: var(--sl-fg); color: var(--sl-bg); }
+
+.slither-demo .sl-game { display: grid; gap: 20px; }
+@media (min-width: 640px) { .slither-demo .sl-game { grid-template-columns: minmax(0, 1fr) 11rem; } }
+
+.slither-demo .sl-board { position: relative; aspect-ratio: 4 / 3; }
+.slither-demo .sl-arena { width: 100%; height: 100%; display: block; border-radius: 8px;
+  box-shadow: 0 0 0 1px var(--sl-line); cursor: crosshair; }
+.slither-demo.sl-playing .sl-arena { touch-action: none; }
+.slither-demo .sl-overlay {
+  position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 20px;
+  border-radius: 8px; background: color-mix(in srgb, var(--sl-board) 72%, transparent);
+  font-family: var(--sl-display); font-size: 20px; font-weight: 500; pointer-events: none;
+}
+.slither-demo .sl-overlay small { display: block; margin-top: 4px; font-family: inherit; font-size: 13px; color: var(--sl-faint); font-weight: 400; }
+.slither-demo .sl-start {
+  pointer-events: auto; display: block; margin: 14px auto 0; border: 0; border-radius: 999px;
+  background: var(--sl-fg); color: var(--sl-bg); padding: 9px 18px; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: opacity .15s;
+}
+.slither-demo .sl-start:hover { opacity: .85; }
+.slither-demo .sl-boost {
+  position: absolute; left: 12px; bottom: 12px; border: 0; border-radius: 999px; padding: 12px 20px;
+  background: var(--sl-fg); color: var(--sl-bg); font-weight: 600; touch-action: none; user-select: none;
+}
+
+.slither-demo .sl-side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.slither-demo .sl-lbl { margin-bottom: 6px; font-size: 11px; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; color: var(--sl-faint); }
+.slither-demo .sl-leaders { display: grid; gap: 4px; }
+.slither-demo .sl-leaders li { display: grid; grid-template-columns: 8px 1fr auto; gap: 8px; align-items: center; cursor: pointer; }
+.slither-demo .sl-leaders li.sl-on { font-weight: 600; }
+.slither-demo .sl-dot { width: 8px; height: 8px; border-radius: 999px; }
+.slither-demo .sl-mass { font-family: var(--sl-mono); font-size: 12px; color: var(--sl-muted); }
+.slither-demo .sl-fan { width: 100%; height: 96px; display: block; }
+.slither-demo .sl-pills { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.slither-demo .sl-meta { font-size: 13px; color: var(--sl-faint); }
