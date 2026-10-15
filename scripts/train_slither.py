@@ -224,7 +224,7 @@ def main(argv=None):
         stop = args.hours is not None and hours >= args.hours
         if iteration % args.eval_every == 0 or stop or iteration == args.iterations:
             model.eval()
-            row.update({k: round(v, 4) for k, v in evaluate(model, args, iteration).items()})
+            row.update({k: round(v, 4) for k, v in evaluate(model, args, args.seed + 12345).items()})
             save_checkpoint(run_dir / "checkpoints" / f"iter_{iteration:05d}.pt", model, iteration, env_steps, row)
             save_checkpoint(run_dir / "latest.pt", model, iteration, env_steps, row)
             if row["mass_share_vs_hunter"] > best:
