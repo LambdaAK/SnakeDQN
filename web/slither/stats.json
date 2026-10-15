@@ -1,0 +1,171 @@
+{
+  "final_eval": {
+    "wander": {
+      "policy": "runs/slither/best.pt",
+      "bot": "wander",
+      "arenas": 300,
+      "decisions": 3000,
+      "mean_mass": 259.7047786266925,
+      "mean_mass_ci": [
+        253.45758900698604,
+        266.0514951636387
+      ],
+      "mass_share": 0.558318547922613,
+      "mass_share_ci": [
+        0.5493893663042788,
+        0.5671214794190885
+      ],
+      "kills": 1862,
+      "deaths": 239,
+      "kills_per_death": 7.7907949790794975,
+      "kills_per_death_ci": [
+        6.6516787439613525,
+        9.12204197390811
+      ],
+      "mean_life": 1385.1255230125523
+    },
+    "forager": {
+      "policy": "runs/slither/best.pt",
+      "bot": "forager",
+      "arenas": 300,
+      "decisions": 3000,
+      "mean_mass": 237.5602167300567,
+      "mean_mass_ci": [
+        230.84426509433487,
+        244.79167286758653
+      ],
+      "mass_share": 0.35940520678977245,
+      "mass_share_ci": [
+        0.35093984773956005,
+        0.36812692681526166
+      ],
+      "kills": 4803,
+      "deaths": 459,
+      "kills_per_death": 10.4640522875817,
+      "kills_per_death_ci": [
+        9.475122967375032,
+        11.728239633650581
+      ],
+      "mean_life": 1156.8823529411766
+    },
+    "hunter": {
+      "policy": "runs/slither/best.pt",
+      "bot": "hunter",
+      "arenas": 300,
+      "decisions": 3000,
+      "mean_mass": 243.76579076881063,
+      "mean_mass_ci": [
+        236.62570478764178,
+        251.3038847351363
+      ],
+      "mass_share": 0.3630783812351469,
+      "mass_share_ci": [
+        0.35401510964709393,
+        0.37209204689954783
+      ],
+      "kills": 5004,
+      "deaths": 457,
+      "kills_per_death": 10.949671772428884,
+      "kills_per_death_ci": [
+        9.804746176926054,
+        12.298249113475176
+      ],
+      "mean_life": 1123.0525164113785
+    }
+  },
+  "curve": [
+    {
+      "env_steps": 819200,
+      "hours": 0.1716,
+      "mass_share_vs_hunter": 0.1636,
+      "mass_share_vs_forager": 0.167
+    },
+    {
+      "env_steps": 1638400,
+      "hours": 0.6119,
+      "mass_share_vs_hunter": 0.1782,
+      "mass_share_vs_forager": 0.1927
+    },
+    {
+      "env_steps": 2457600,
+      "hours": 1.1509,
+      "mass_share_vs_hunter": 0.1806,
+      "mass_share_vs_forager": 0.1949
+    },
+    {
+      "env_steps": 3276800,
+      "hours": 1.6772,
+      "mass_share_vs_hunter": 0.1877,
+      "mass_share_vs_forager": 0.1873
+    },
+    {
+      "env_steps": 4096000,
+      "hours": 2.2487,
+      "mass_share_vs_hunter": 0.1893,
+      "mass_share_vs_forager": 0.1749
+    },
+    {
+      "env_steps": 4456448,
+      "hours": 2.5106,
+      "mass_share_vs_hunter": 0.1722,
+      "mass_share_vs_forager": 0.1684
+    }
+  ],
+  "checkpoint": {
+    "iteration": 125,
+    "env_steps": 4096000,
+    "metrics": {
+      "iteration": 125,
+      "env_steps": 4096000,
+      "hours": 2.2487,
+      "samples": 284377,
+      "deaths": 146,
+      "kills": 153,
+      "mean_reward": 0.01271,
+      "mean_mass": 283.25,
+      "policy_loss": -0.00205,
+      "value_loss": 0.1528,
+      "entropy": 1.87264,
+      "approx_kl": 0.00393,
+      "mass_share_vs_forager": 0.1749,
+      "kpd_vs_forager": 14.0,
+      "mass_vs_forager": 55.4787,
+      "mass_share_vs_hunter": 0.1893,
+      "kpd_vs_hunter": 14.0,
+      "mass_vs_hunter": 60.092
+    }
+  },
+  "config": {
+    "arena_radius": 300.0,
+    "tick_hz": 30,
+    "ticks_per_decision": 3,
+    "max_turn": 0.15,
+    "start_mass": 10.0,
+    "max_mass": 500.0,
+    "base_length": 20.0,
+    "length_per_mass": 2.0,
+    "base_radius": 2.0,
+    "radius_per_sqrt_mass": 0.5,
+    "body_capacity": 1024,
+    "boost_min_mass": 15.0,
+    "boost_cost": 0.2,
+    "boost_drop_every": 5,
+    "boost_drop_value": 0.8,
+    "eat_margin": 3.0,
+    "food_capacity": 1024,
+    "natural_food_target": 200,
+    "natural_food_per_tick": 2,
+    "natural_food_value": 1.0,
+    "food_spawn_margin": 10.0,
+    "death_drop_fraction": 0.8,
+    "death_drop_max_pellets": 64,
+    "death_drop_jitter": 2.0,
+    "respawn_delay": 30,
+    "respawn_candidates": 16,
+    "respawn_margin": 60.0,
+    "respawn_clearance": 40.0,
+    "vision": 60.0,
+    "sectors": 32,
+    "neck": 10
+  }
+}
