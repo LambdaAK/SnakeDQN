@@ -5,16 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Snake Self-Play</title>
   <meta name="description" content="A neural network that learned multiplayer Snake by playing against itself, running live in your browser.">
-  <link rel="stylesheet" href="style.css?v=6">
+  <link rel="stylesheet" href="style.css?v=8">
   <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.min.js"></script>
 </head>
 <body>
   <header class="hero">
-    <p class="eyebrow">Reinforcement learning · self-play · PPO</p>
+    <p class="eyebrow">Reinforcement learning · self-play</p>
     <h1>Snake, learned by playing itself</h1>
-    <p class="lede">These networks were never shown a single human game. They learned
-      Battlesnake, head-to-head and in an up-to-8-snake arena, by playing millions of games
-      against copies of themselves, and they run right here in your browser.</p>
+    <p class="lede">Neural networks trained only by playing against themselves, running live in your browser.</p>
   </header>
 
   <main class="arena">
@@ -31,14 +29,14 @@
 
     <aside class="panel">
       <div class="modes" role="tablist">
-        <button role="tab" data-mode="watch" class="active">Watch AI vs AI</button>
-        <button role="tab" data-mode="play">Play vs AI</button>
-        <button role="tab" data-mode="bot">AI vs greedy bot</button>
-        <button role="tab" data-mode="arena">Arena: up to 8 AIs</button>
+        <button role="tab" data-mode="watch" class="active">AI vs AI</button>
+        <button role="tab" data-mode="play">You vs AI</button>
+        <button role="tab" data-mode="bot">AI vs bot</button>
+        <button role="tab" data-mode="arena">Arena</button>
       </div>
 
       <div class="controls">
-        <button id="restart">New game</button>
+        <button id="restart">Restart</button>
         <button id="pause">Pause</button>
         <label class="speed">Speed <input id="speed" type="range" min="40" max="380" value="260" step="20"></label>
         <label id="arena-controls" class="speed" hidden>Snakes <input id="arena-snakes" type="range" min="2" max="8" value="6" step="1"><b id="arena-count">6</b></label>
@@ -47,11 +45,10 @@
       <div id="snakes" class="snakes"></div>
 
       <div class="brain">
-        <h2>Inside the <span class="ai-name">orange</span> network</h2>
-        <p class="hint">Move probabilities for its next turn</p>
+        <h2><span class="ai-name">Orange</span>'s next move</h2>
         <div id="probs" class="probs"></div>
         <div class="value">
-          <span>Value estimate</span>
+          <span>Confidence</span>
           <div class="meter"><div id="value-bar"></div></div>
           <span id="value-text">–</span>
         </div>
@@ -62,33 +59,22 @@
   </main>
 
   <section class="explain">
-    <h2>How it works</h2>
     <div class="cards">
       <article>
-        <h3>A fast simulator</h3>
-        <p>Standard Battlesnake rules (simultaneous moves, health, head-to-head
-          collisions) implemented in vectorised NumPy, stepping 1,024 games at once at
-          over 200,000 turns per second. Every rule is checked against an independent
-          reference implementation.</p>
+        <h3>Simulator</h3>
+        <p>Battlesnake rules in vectorised NumPy, 200k turns/sec.</p>
       </article>
       <article>
-        <h3>Self-play training</h3>
-        <p>A small convolutional actor-critic sees the board as 8 feature planes from its own
-          point of view. It is trained with PPO against its current self and a pool of
-          frozen past selves. Reward is just +1 for winning and −1 for losing, plus a tiny
-          bonus for eating.</p>
+        <h3>Training</h3>
+        <p>PPO self-play. Reward: +1 win, −1 loss.</p>
       </article>
       <article>
-        <h3>Running in your browser</h3>
-        <p>The trained network is exported to ONNX and runs with ONNX Runtime Web. The game
-          rules were ported to JavaScript and verified move-for-move against the Python
-          simulator, so what you see is exactly the game it trained on.</p>
+        <h3>In the browser</h3>
+        <p>ONNX Runtime Web, with rules ported to JavaScript.</p>
       </article>
     </div>
 
-    <h2>Training progress</h2>
-    <p class="hint">Win rate of the network against two hand-written bots, measured over
-      <span id="eval-games">200</span> games at each checkpoint.</p>
+    <h2>Win rate during training</h2>
     <div id="chart" class="chart"></div>
     <div id="results" class="results"></div>
   </section>
@@ -97,6 +83,6 @@
     <a href="https://github.com/LambdaAK/SnakeDQN">Source on GitHub</a>
   </footer>
 
-  <script type="module" src="app.js?v=6"></script>
+  <script type="module" src="app.js?v=8"></script>
 </body>
 </html>

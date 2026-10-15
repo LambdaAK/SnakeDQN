@@ -1,4 +1,4 @@
-import { actionMask, DIRECTIONS, greedyAction, newGame, NUM_CHANNELS, observation, step, windowObservation } from "./rules.js?v=6";
+import { actionMask, DIRECTIONS, greedyAction, newGame, NUM_CHANNELS, observation, step, windowObservation } from "./rules.js?v=8";
 
 const COLORS = ["#f59e0b", "#38bdf8", "#a78bfa", "#34d399", "#f472b6", "#facc15", "#fb7185", "#22d3ee"];
 const COLOR_NAMES = ["Orange", "Blue", "Violet", "Green", "Pink", "Yellow", "Coral", "Cyan"];
@@ -57,7 +57,7 @@ function startGame() {
   waitingForHuman = controllers().includes("human");
   $("dpad").hidden = mode !== "play";
   if (waitingForHuman) {
-    showOverlay("Press an arrow key, or click where you want to go", "Your snake (blue) keeps moving; steer with arrows, WASD, clicks or swipes");
+    showOverlay("You're blue. Press an arrow key or click to start.");
   } else {
     hideOverlay();
   }
@@ -156,14 +156,14 @@ function onGameOver() {
   const drawSlot = mode === "arena" ? 8 : 2;
   if (w === -1) t[drawSlot]++; else t[w]++;
   let title;
-  if (w === -1) title = mode === "arena" ? "Draw: the last snakes went down together" : "Draw: both snakes went down";
+  if (w === -1) title = "Draw";
   else if (mode === "play") title = w === 1 ? "You win!" : "The AI wins";
   else title = `${names()[w]} wins`;
   if (mode === "play") {
-    showOverlay(title, `Turn ${game.turn} · press a direction to play again`);
+    showOverlay(title, "Press a direction to play again");
     waitForReplay = true;
   } else {
-    showOverlay(title, `Turn ${game.turn} · next game starting`);
+    showOverlay(title);
     restartTimer = setTimeout(startGame, 1600);
   }
   updatePanel();
@@ -358,14 +358,14 @@ function updatePanel() {
     $("value-text").textContent = (v >= 0 ? "+" : "") + v.toFixed(2);
   }
   document.querySelector(".ai-name").textContent =
-    mode === "watch" || mode === "arena" ? "orange" : "AI's";
+    mode === "watch" || mode === "arena" ? "Orange" : "The AI";
 
   const t = tally[mode];
   if (mode === "arena") {
     const wins = label.map((n, i) => `${n} ${t[i]}`).join(" · ");
-    $("tally").textContent = `Wins this session: ${wins} · draws ${t[8]}`;
+    $("tally").textContent = `Wins: ${wins}`;
   } else {
-    $("tally").textContent = `This session: ${label[0]} ${t[0]} · ${label[1]} ${t[1]} · draws ${t[2]}`;
+    $("tally").textContent = `Wins: ${label[0]} ${t[0]} · ${label[1]} ${t[1]}`;
   }
 }
 
@@ -383,12 +383,11 @@ async function loadStats() {
   const tiles = [];
   const fe = stats.final_eval;
   if (fe) {
-    $("eval-games").textContent = "200";
-    tiles.push([`${Math.round(100 * fe.win_vs_flood_fill)}%`, `wins vs flood-fill bot (${fe.games} games)`]);
-    tiles.push([`${Math.round(100 * fe.win_vs_greedy)}%`, `wins vs greedy bot (${fe.games} games)`]);
+    tiles.push([`${Math.round(100 * fe.win_vs_flood_fill)}%`, "win rate vs flood-fill bot"]);
+    tiles.push([`${Math.round(100 * fe.win_vs_greedy)}%`, "win rate vs greedy bot"]);
   }
-  tiles.push([`${(stats.checkpoint.env_steps / 1e6).toFixed(0)}M`, "self-play turns of training"]);
-  tiles.push([`${(stats.checkpoint.parameters / 1e6).toFixed(1)}M`, "network parameters"]);
+  tiles.push([`${(stats.checkpoint.env_steps / 1e6).toFixed(0)}M`, "training turns"]);
+  tiles.push([`${(stats.checkpoint.parameters / 1e6).toFixed(1)}M`, "parameters"]);
   $("results").innerHTML = tiles.map(([b, s]) => `<div class="stat"><b>${b}</b><span>${s}</span></div>`).join("");
 }
 
@@ -415,8 +414,8 @@ function drawChart(points) {
       <path d="${line("win_vs_greedy")}" fill="none" stroke="#38bdf8" stroke-width="2.5"/>
       <path d="${line("win_vs_flood_fill")}" fill="none" stroke="#f59e0b" stroke-width="2.5"/>
     </svg>
-    <div class="legend"><span style="--c:#f59e0b">vs flood-fill bot (strongest scripted)</span>
-      <span style="--c:#38bdf8">vs greedy bot</span><span>x-axis: self-play turns</span></div>`;
+    <div class="legend"><span style="--c:#f59e0b">vs flood-fill bot</span>
+      <span style="--c:#38bdf8">vs greedy bot</span></div>`;
 }
 
 // ---------- wiring ----------
@@ -474,12 +473,12 @@ window.addEventListener("resize", resizeCanvas);
 // Networks load on first use, so the arena model doesn't slow down the first page load.
 async function loadModel(name) {
   if (sessions[name]) return true;
-  showOverlay(name === "arena" ? "Loading the arena network…" : "Loading neural network…");
+  showOverlay("Loading…");
   try {
     sessions[name] = await ort.InferenceSession.create(MODELS[name].url);
     return true;
   } catch (err) {
-    showOverlay("Couldn't load the neural network", String(err));
+    showOverlay("Couldn't load the network", String(err));
     return false;
   }
 }
