@@ -16,7 +16,10 @@ from snake_rl.slither.config import SlitherConfig
 from snake_rl.slither.observations import OBS_CHANNELS, SIZE_SCALE
 
 BOT_NAMES = ("wander", "forager", "hunter")
-HUNT_LEAD = 20.0  # aim this far ahead of the prey's head, so we cross its path
+HUNT_MAX_DANGER = 0.5  # skip the chase when the aimed sector's wall/body danger is above this
+HUNT_MIN_CLOSE = 0.4  # only chase heads at least this close (0 = edge of vision, 1 = touching)
+HUNT_CONE = np.pi / 2  # only chase heads within this angle of straight ahead
+HUNT_LEAD = 50.0  # aim this far ahead of the prey's head, so we cross its path
 
 
 @dataclass(frozen=True)
@@ -67,7 +70,7 @@ class SlitherBot:
     def _hunt(self, obs, sec, target, mask):
         k = self.cfg.sectors
         my_size = obs[..., k * OBS_CHANNELS + 1]
-        prey = ((np.abs(self.phi) < np.pi / 3) & (sec[..., 5] > 0.5)
+        prey = ((np.abs(self.phi) < HUNT_CONE) & (sec[..., 5] > HUNT_MIN_CLOSE)
                 & (sec[..., 2] < my_size[..., None]) & (sec[..., 0] < 0.5))
         has = prey.any(axis=-1)
         pick = np.argmax(np.where(prey, sec[..., 5], -1.0), axis=-1)[..., None]
@@ -78,4 +81,8 @@ class SlitherBot:
         ang = self.phi[pick[..., 0]]
         dist = (1.0 - near) * self.cfg.vision + size * SIZE_SCALE
         aim = np.arctan2(dist * np.sin(ang) + HUNT_LEAD * sin_h, dist * np.cos(ang) + HUNT_LEAD * cos_h)
+        # Don't cut across a path that runs through a wall or enemy body.
+        aim_sector = np.round((aim + np.pi) / (2.0 * np.pi / k)).astype(np.int64) % k
+        blocked = np.take_along_axis(np.maximum(sec[..., 0], sec[..., 1]), aim_sector[..., None], -1)[..., 0]
+        has = has & (blocked < HUNT_MAX_DANGER)
         return np.where(has, aim, target), has & mask[..., 1]
