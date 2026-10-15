@@ -1,0 +1,80 @@
+\chapter{Hyperparameters}\label{app:hparams}
+
+\begin{center}
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Setting} & \textbf{Duel} & \textbf{Arena}\\
+\midrule
+Board, snakes & $11\times11$, 2 & $19\times19$, 6\\
+Minimum food $f_{\min}$ & 1 & 6\\
+Observation & full board, 8 planes & $17\times17$ window, 9 planes\\
+Hidden width $h$ & 256 & 128\\
+Parallel games $N$ & 512 & 256\\
+Rollout length $T$ & 64 & 64\\
+Discount $\gamma$, GAE $\lambda$ & 0.99, 0.95 & 0.99, 0.95\\
+Clip $\epsilon$ & 0.2 & 0.2\\
+Epochs, minibatch & 4, 4{,}096 & 4, 4{,}096\\
+Optimiser & Adam, $2.5\times10^{-4}$, $\epsilon{=}10^{-5}$ & same\\
+Value coef.\ $c_v$, entropy coef.\ $c_e$ & 0.5, 0.01 & 0.5, 0.01\\
+Gradient-norm clip & 0.5 & 0.5\\
+Food bonus & 0.05 & 0.05\\
+Snapshot opponent probability & 0.3 & 0.3\\
+Snapshot pool size, interval & 20, every 10 iterations & 20, every 10 iterations\\
+Evaluation & every 25 its., 200 games & every 30 its., 60 games\\
+Wall-clock budget & 2.5\,h & 2.5\,h\\
+Iterations, game turns & 1{,}109, 36.3M & 971, 15.9M\\
+Reported checkpoint & iteration 1{,}025 & iteration 971\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\chapter{Reproducing the Results}\label{app:repro}
+
+Everything runs through \code{uv}. The training extras (PyTorch, ONNX, Pillow) are an
+optional dependency group.
+
+\begin{lstlisting}[language=bash]
+uv run pytest                                  # 106 tests
+uv run python scripts/benchmark_env.py         # simulator throughput
+uv run python scripts/evaluate.py flood_fill greedy --games 500
+
+uv sync --group train
+# duel network
+uv run --group train python scripts/train_selfplay.py --device mps --hours 2.5
+uv run --group train python scripts/final_eval.py runs/selfplay/best.pt --games 1000
+# arena network
+uv run --group train python scripts/train_selfplay.py --run-dir runs/arena \
+    --board 19 --num-snakes 6 --window 17 --min-food 6 --hidden 128 \
+    --num-envs 256 --device mps --hours 2.5
+uv run --group train python scripts/final_eval.py runs/arena/latest.pt \
+    --board 19 --num-snakes 6 --min-food 6 --games 300 --out results/ppo_arena.json
+# browser assets, then serve the demo
+uv run --group train python scripts/build_web_assets.py --run-dir runs/selfplay \
+    --final-eval results/ppo_selfplay.summary.json
+python3 -m http.server --directory web 8000
+# this report's figures
+uv run --group train python docs/report/make_figures.py
+\end{lstlisting}
+
+All evaluation numbers in this report are stored as JSON in \code{results/}, alongside
+the full per-iteration training logs and configurations of both runs.
+
+\chapter{Repository Map}\label{app:repo}
+
+\begin{center}
+\begin{tabular}{@{}lp{0.62\linewidth}@{}}
+\toprule
+\textbf{Path} & \textbf{Contents}\\
+\midrule
+\code{snake\_rl/env/} & rules, observations, rewards, batched \code{SnakeEnv}, terminal renderer\\
+\code{snake\_rl/baselines/} & random, safe\_random, greedy, flood\_fill and hamiltonian bots\\
+\code{snake\_rl/agents/} & actor--critic network and its harness wrapper\\
+\code{snake\_rl/eval/} & match runner with Wilson and bootstrap intervals\\
+\code{scripts/} & training, evaluation, export, benchmarking, play, GIF rendering\\
+\code{tests/} & the 106-test suite, including the reference oracle\\
+\code{web/} & the browser demo: rules port, app, models\\
+\code{results/} & evaluation JSON and training logs\\
+\code{docs/report/} & this report and the script that draws its figures\\
+\bottomrule
+\end{tabular}
+\end{center}

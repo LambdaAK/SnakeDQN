@@ -1,0 +1,150 @@
+\chapter{A Batched Simulator}\label{ch:sim}
+
+Reinforcement learning is hungry for experience: the duel network in this report saw
+36 million game turns. A Python loop over games would make that a week; the simulator
+instead advances $N$ games in a single vectorised step, with no Python loop over games
+anywhere on the training path.
+
+\section{State as arrays}
+
+\begin{defbox}[Batched game state]
+All games in a batch share the board size $B$ and snake count $S$. The state is a
+handful of NumPy arrays indexed \code{[env, snake, ...]}:
+\begin{center}
+\begin{tabular}{@{}llp{0.5\linewidth}@{}}
+\toprule
+\textbf{Field} & \textbf{Shape, dtype} & \textbf{Meaning}\\
+\midrule
+\code{body}   & $(N,S,B^2{+}1,2)$, int16 & segment cells, head at index 0\\
+\code{length} & $(N,S)$, int16 & number of valid segments\\
+\code{health} & $(N,S)$, int16 & health points\\
+\code{alive}  & $(N,S)$, bool  & snake is in play\\
+\code{food}   & $(N,B,B)$, bool & food cells\\
+\code{turn}   & $(N)$, int32 & turns played\\
+\code{over}   & $(N)$, bool & game finished, awaiting reset\\
+\bottomrule
+\end{tabular}
+\end{center}
+Segments past \code{length} are garbage and never read. The extra slot in
+$B^2{+}1$ holds the duplicated tail of a snake that has filled the board.
+\end{defbox}
+
+\begin{keybox}[Why a fixed-capacity body array]
+Storing every body in a padded array of capacity $B^2{+}1$ turns ``move every snake''
+into one slice assignment, \code{body[m, 1:L] = body[m, 0:L-1]}, over the boolean mask
+$m$ of moving snakes, with $L$ the longest current length plus one. Short games pay
+only for their actual length, and no per-snake Python list ever exists.
+\end{keybox}
+
+\section{The step, vectorised}
+
+Each stage of the turn order (Chapter~\ref{ch:game}) maps to a few array operations.
+
+\begin{algbox}[\code{step\_games(state, actions, spawn\_u)}]
+\begin{enumerate}
+\item \textbf{Validate} that \code{actions} is an integer array of shape $(N,S)$ with
+  values in $0..3$; anything else raises, rather than silently wrapping.
+\item \textbf{Move} the masked snakes by slicing, write the new heads, and decrement
+  health.
+\item \textbf{Feed} by looking up \code{food[env, row, col]} at every new head (clipped
+  for off-board heads, which are masked out). Eaters duplicate their tail with one fancy
+  assignment, reset health, and clear the food.
+\item \textbf{Spawn} at most one food per game, driven by the externally supplied
+  uniforms \code{spawn\_u} (next section).
+\item \textbf{Eliminate}: compute survivors of starvation and walls; build an occupancy
+  count of their non-head segments; look up each head in it; resolve head-to-heads with an
+  $S\times S$ comparison of head cells and lengths.
+\item \textbf{Finish}: advance turns, flag finished games, and report per-snake
+  \code{ate}, \code{died} and \code{alive\_before}, plus per-game \code{game\_over} and
+  \code{winner}.
+\end{enumerate}
+\end{algbox}
+
+\subsection{Occupancy by \code{bincount}}
+
+Several stages ask the same question: how many segments of which snakes sit on each cell?
+Flattening every cell of every game to one index
+\[
+  \iota(n, r, c) = (n\cdot B + r)\cdot B + c,
+\]
+the answer for any mask of snakes and range of segment indices is a single
+\code{np.bincount} over the valid segments, reshaped to $(N, B^2)$. Body collisions use
+segments $1..L{-}1$ of survivors; the action mask uses segments $0..L{-}2$ of living
+snakes, since tails move away; food spawning uses all segments.
+
+\subsection{Head-to-head without loops}
+
+With $\text{cell}_k$ the flattened new head of snake $k$ and $\text{surv}_k$ its survivor
+flag, snake $k$ loses a head-to-head if
+\[
+  \bigvee_{j\ne k}\ \bigl[\text{cell}_j = \text{cell}_k\bigr]\wedge
+  \text{surv}_j \wedge \text{surv}_k \wedge \bigl[L_j \ge L_k\bigr],
+\]
+an $(N,S,S)$ boolean tensor reduced over $j$. With $S\le 8$ this is cheaper than any
+alternative.
+
+\section{Randomness you can replay}
+
+\begin{keybox}[Injected uniforms]
+The step function takes its randomness as an argument: two uniforms per game,
+$u_0,u_1\sim\mathcal{U}[0,1)$. A food spawns if $|F|<f_{\min}$ or $u_0<0.15$, on the
+$\lfloor u_1\cdot n_{\text{free}}\rfloor$-th free cell in row-major order. Given the same
+uniforms, any implementation must place food on exactly the same cell. This is what lets
+the batched engine, a slow reference engine, and a JavaScript port be compared
+\emph{exactly}, step for step (Chapter~\ref{ch:verify}).
+\end{keybox}
+
+Choosing the $k$-th free cell is itself vectorised: with \code{free} an $(n,B^2)$
+boolean array, the cell is \code{argmax(cumsum(free, axis=1) > k)}.
+
+\section{The environment wrapper}
+
+\code{SnakeEnv} wraps the rules in the usual interface. Its constructor takes the number
+of games, the number of snakes, the board size, a reward name, the maximum health, a seed
+and the minimum food:
+\begin{lstlisting}[language=Python]
+env = SnakeEnv(num_envs=1024, num_snakes=2)        # 11x11 Battlesnake
+obs, info = env.reset()                            # obs: (1024, 2, 8, 11, 11)
+obs, rewards, dones, info = env.step(actions)      # actions: (1024, 2) in {0,1,2,3}
+\end{lstlisting}
+
+Finished games \textbf{reset automatically} inside \code{step}. The returned \code{obs}
+is the first frame of the new game, while \code{info} carries \code{final\_obs},
+\code{final\_length}, \code{final\_turn}, \code{winner} and \code{game\_over} for the
+game that just ended. It also exposes the \code{action\_mask} and the \code{active}
+mask, which Chapter~\ref{ch:obs} explains.
+
+\section{Performance}
+
+\begin{center}
+\begin{tikzpicture}
+\begin{axis}[reportaxis, height=4.6cm, width=0.72\linewidth, xbar, xmin=150, xmax=230,
+  symbolic y coords={Initial version, + spawn occupancy mask, + preallocated observations},
+  ytick=data, y dir=reverse, bar width=11pt, enlarge y limits=0.28,
+  xlabel={thousand game turns per second (1{,}024 games, 2 snakes)},
+  nodes near coords, nodes near coords style={font=\footnotesize,color=cmudark},
+  grid=none]
+\addplot[fill=cmured!80, draw=none] coordinates
+  {(198,Initial version) (206,+ spawn occupancy mask) (214,+ preallocated observations)};
+\addplot[draw=cmudark, dashed, line width=0.8pt, sharp plot, nodes near coords={}] coordinates
+  {(200,Initial version) (200,+ preallocated observations)};
+\end{axis}
+\end{tikzpicture}
+\captionof{figure}{Simulator throughput on an Apple M3 Max CPU (medians of repeated runs;
+the machine varies by about 5\% between runs). The dashed line is the 200{,}000 target.}
+\label{fig:throughput}
+\end{center}
+
+The target was 200{,}000 turns per second. Profiling the first version showed time split
+between building observations (\code{np.stack}, 18\%), occupancy counting (17\%) and
+per-snake layer drawing (14\%). Two changes cleared the target without touching
+behaviour:
+\begin{itemize}
+\item \textbf{Spawn occupancy only where needed.} About 15\% of games spawn food on a
+  given turn; counting occupancy only for those games removes most of that work.
+\item \textbf{Preallocated observations.} Writing each channel into one preallocated
+  array instead of stacking eight temporaries.
+\end{itemize}
+A direct comparison of the old and new code over 300 turns of 256 games, in four
+configurations up to eight snakes on $19\times19$, produced identical states and
+observations at every step.

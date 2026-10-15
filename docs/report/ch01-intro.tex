@@ -1,0 +1,90 @@
+\chapter{Introduction}\label{ch:intro}
+
+Snake is a game most people learn in an afternoon: steer, eat, grow, and do not run into
+anything. Battlesnake turns it into a competitive, simultaneous-move game for several
+players, where the board fills up with bodies and two heads meeting on the same cell
+settle the matter by length. It is small enough to simulate millions of times an hour,
+yet rich enough that good play needs planning: cutting opponents off, avoiding traps you
+cannot see the bottom of, and knowing when to eat and when to fight.
+
+This project builds, from the ground up, an agent that learns this game entirely by
+playing against copies of itself, and puts the result in a web page where anyone can
+watch it or play against it.
+
+\section{Goals}
+
+\begin{enumerate}
+\item \textbf{A faithful, fast simulator.} Standard Battlesnake rules, batched so that
+  thousands of games advance in one vectorised step, with correctness established by
+  independent means rather than assumed.
+\item \textbf{Learning without priors.} No human games, no hand-engineered features in the
+  observation, and a reward that only says who won.
+\item \textbf{Honest measurement.} Fixed scripted opponents, many games, confidence
+  intervals, and checkpoint selection that does not leak into the reported numbers.
+\item \textbf{A live demonstration.} The trained networks run client-side in a browser,
+  on a port of the rules that is checked move-for-move against the original.
+\end{enumerate}
+
+\section{System overview}
+
+\begin{center}
+\begin{tikzpicture}[node distance=0.55cm and 0.9cm]
+  \node[node fill, text width=2.6cm] (rules) {Rules\\\footnotesize batched NumPy};
+  \node[node box, right=of rules, text width=2.6cm] (obs) {Observations\\\footnotesize egocentric planes};
+  \node[node box, right=of obs, text width=2.6cm] (ppo) {PPO self-play\\\footnotesize PyTorch, MPS};
+  \node[node fill, right=of ppo, text width=2.2cm] (onnx) {ONNX\\\footnotesize export};
+  \node[node soft, below=0.9cm of rules, text width=2.6cm] (oracle) {Reference oracle\\\footnotesize pure Python};
+  \node[node soft, below=0.9cm of obs, text width=2.6cm] (bots) {Scripted bots\\\footnotesize 5 baselines};
+  \node[node soft, below=0.9cm of ppo, text width=2.6cm] (harness) {Match harness\\\footnotesize Wilson CIs};
+  \node[node soft, below=0.9cm of onnx, text width=2.2cm] (js) {JS rules\\\footnotesize + web demo};
+  \draw[flow] (rules) -- (obs);
+  \draw[flow] (obs) -- (ppo);
+  \draw[flow] (ppo) -- (onnx);
+  \draw[flowdash] (oracle) -- node[lbl,left]{checks} (rules);
+  \draw[flowdash] (bots) -- (harness);
+  \draw[flowdash] (harness) -- node[lbl,right]{scores} (ppo);
+  \draw[flow] (onnx) -- (js);
+  \draw[flowdash] (rules.west) -- ++(-0.35,0) |- ($(js.south)+(0,-0.5)$)
+    node[lbl,below,pos=0.75]{parity tests} -- (js.south);
+\end{tikzpicture}
+\end{center}
+
+The work is organised in layers, each of which is tested against something independent
+of itself:
+
+\begin{itemize}
+\item the \textbf{rules} (Chapter~\ref{ch:sim}) against a slow reference implementation
+  and against themselves run one game at a time (Chapter~\ref{ch:verify});
+\item the \textbf{observations and rewards} (Chapter~\ref{ch:obs}) against hand-built
+  positions;
+\item the \textbf{agents} against five scripted bots through a common evaluation
+  harness (Chapter~\ref{ch:baselines});
+\item the \textbf{browser port} (Chapter~\ref{ch:browser}) against Python-generated
+  trajectories.
+\end{itemize}
+
+\section{Contributions}
+
+\begin{keybox}[What this report shows]
+\begin{enumerate}
+\item A batched Battlesnake engine in pure NumPy reaching 214{,}000 game turns per second
+  on a laptop CPU, verified exactly against an independent oracle.
+\item A duel network that beats the best hand-written heuristic in 91\% of games after
+  2.5 hours of training, learned from a $\pm1$ win signal.
+\item A head-centred \emph{window} observation that decouples the network from board size
+  and player count, enabling a six-snake arena agent that wins nearly three times its fair
+  share against a table of flood-fill bots.
+\item A browser deployment with continuous rendering of a turn-based game, and a
+  JavaScript rules port verified against the Python engine.
+\end{enumerate}
+\end{keybox}
+
+\section{A note on history}
+
+The repository began as a single-snake Deep Q-Network with a hand-crafted 33-number
+state: danger flags, A* path quality, dead-end lookahead. That design leaned on features
+that already encoded much of the answer, ran a path search four times per step, and
+could not express a second player. The rebuild described here discards those features,
+replaces the single-player game with the full multi-player rules, and moves from DQN to
+PPO. Comparing value-based and policy-gradient methods on the new environment is left as
+future work (Chapter~\ref{ch:limits}).

@@ -1,0 +1,132 @@
+\documentclass[11pt,openany]{book}
+\input{preamble}
+
+\title{Snake, Learned by Playing Itself}
+\author{Alex Kozik}
+\date{October 2026}
+
+\begin{document}
+
+% ---------------- title page ----------------
+\begin{titlepage}
+\thispagestyle{empty}
+\begin{tikzpicture}[remember picture, overlay]
+  \fill[cmured] ([xshift=0cm,yshift=-3.2cm]current page.north west)
+    rectangle ([xshift=0cm,yshift=-3.35cm]current page.north east);
+\end{tikzpicture}
+\vspace*{3.2cm}
+
+{\raggedright
+{\fontsize{15}{18}\selectfont\sffamily\color{cmudark} Technical report\par}
+\vspace{0.8cm}
+{\fontsize{44}{48}\selectfont\bfseries\color{cmured} Snake, Learned\\[4pt] by Playing Itself\par}
+\vspace{0.7cm}
+{\fontsize{16}{20}\selectfont\color{cmudark}\itshape Self-play reinforcement learning for\\[2pt]
+  multi-agent Battlesnake, from simulator to browser\par}
+\vspace{1.1cm}
+{\color{rulegrey}\rule{0.42\linewidth}{1pt}}
+\vspace{0.7cm}
+
+{\normalsize\color{cmudark}
+\begin{tabular}{@{}r@{\hspace{1.2em}}l@{}}
+\textbf{1} & Introduction\\
+\textbf{2} & The Game\\
+\textbf{3} & A Batched Simulator\\
+\textbf{4} & Verifying the Simulator\\
+\textbf{5} & Observations, Rewards and Masks\\
+\textbf{6} & Scripted Opponents and Measurement\\
+\textbf{7} & Learning by Self-Play\\
+\textbf{8} & Results: The Duel\\
+\textbf{9} & Results: The Arena\\
+\textbf{10} & Into the Browser\\
+\textbf{11} & Limitations and Next Steps\\
+\end{tabular}\par}
+\vfill
+{\footnotesize\color{cmudark} October 2026\qquad$\cdot$\qquad Alex Kozik\qquad$\cdot$\qquad
+  \href{https://github.com/LambdaAK/SnakeDQN}{github.com/LambdaAK/SnakeDQN}\par}
+}
+\end{titlepage}
+
+% ---------------- at a glance ----------------
+\chapter*{At a glance}
+\addcontentsline{toc}{chapter}{At a glance}
+\markboth{At a glance}{}
+
+This report documents a complete reinforcement-learning system for
+\emph{Battlesnake}, the simultaneous-move, multi-player variant of Snake. Two neural
+networks were trained from scratch by self-play, with no human data and no hand-written
+features, and both now run live in a web page. The report covers every layer: the game
+rules and their batched implementation, how that implementation was verified, the
+learning algorithm, the experiments, and the browser port.
+
+\begin{keybox}[Headline results]
+\textbf{Duel} (two snakes, $11\times11$). After 2.5 hours of self-play on a laptop
+(33.6M game turns), the network wins \textbf{91.4\%} of 1{,}000 games against the
+strongest hand-written bot (95\% CI 89.5--93.0), and \textbf{90.2\%} against a
+food-greedy bot. For comparison, the strongest bot beats the greedy one only 74.0\% of the
+time.
+
+\textbf{Arena} (six snakes, $19\times19$). A second network that sees only a
+$17\times17$ window around its own head wins \textbf{44.7\%} of 300 games played as one
+snake against \emph{five} flood-fill bots. An even contest would win
+$1/6 \approx 16.7\%$.
+\end{keybox}
+
+\begin{center}
+\begin{tabular}{@{}lrr@{}}
+\toprule
+\textbf{Component} & \textbf{Figure} & \textbf{Where}\\
+\midrule
+Simulator throughput & 214{,}000 turns/s & Chapter~\ref{ch:sim}\\
+Automated tests & 106 & Chapter~\ref{ch:verify}\\
+Duel network & 2.04M parameters, 8.2\,MB ONNX & Chapter~\ref{ch:learn}\\
+Arena network & 2.43M parameters, 9.7\,MB ONNX & Chapter~\ref{ch:arena}\\
+Duel win rate vs flood-fill bot & 91.4\% & Chapter~\ref{ch:duel}\\
+Arena win rate vs $5\times$ flood-fill & 44.7\% & Chapter~\ref{ch:arena}\\
+Training budget, each network & 2.5\,h, Apple M3 Max GPU & Chapter~\ref{ch:learn}\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{How to read this report.} Four kinds of box appear throughout, as in the
+course notes this layout is borrowed from.
+
+\noindent\begin{minipage}[t]{0.485\linewidth}
+\begin{defbox}[Definition]
+A formal object, rule or quantity.
+\end{defbox}
+\begin{algbox}[Algorithm]
+A procedure, as implemented.
+\end{algbox}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.485\linewidth}
+\begin{keybox}[Key idea]
+The load-bearing decision or insight.
+\end{keybox}
+\begin{warnbox}[Watch out]
+A subtlety, a bug found and fixed, or a caveat.
+\end{warnbox}
+\end{minipage}
+
+\clearpage
+\pagestyle{plain}
+\tableofcontents
+\clearpage
+\pagestyle{fancy}
+
+\input{ch01-intro}
+\input{ch02-game}
+\input{ch03-simulator}
+\input{ch04-verify}
+\input{ch05-observations}
+\input{ch06-baselines}
+\input{ch07-learning}
+\input{ch08-duel}
+\input{ch09-arena}
+\input{ch10-browser}
+\input{ch11-limitations}
+
+\appendix
+\input{appendix}
+
+\end{document}

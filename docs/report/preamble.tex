@@ -1,0 +1,209 @@
+% ============================================================
+%  Snake, Learned by Playing Itself -- report preamble
+%  (adapted from the 10-703 notes preamble: same palette, boxes and headings)
+% ============================================================
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb,amsthm,mathtools}
+\usepackage{bm}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{etoolbox}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{caption}
+\usepackage{listings}
+\usepackage{multirow}
+\usetikzlibrary{arrows.meta,positioning,calc,fit,backgrounds,decorations.pathreplacing,shapes.geometric,patterns}
+\usepackage{framed}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage[hidelinks,colorlinks=true,linkcolor=cmured,citecolor=cmured,urlcolor=cmured]{hyperref}
+
+% ---------- palette ----------
+\definecolor{cmured}{HTML}{A6192E}
+\definecolor{cmudark}{HTML}{6E1220}
+\definecolor{inkblue}{HTML}{1F3A5F}
+\definecolor{seagreen}{HTML}{1B6B5A}
+\definecolor{amber}{HTML}{B8860B}
+\definecolor{softgrey}{HTML}{F4F2F0}
+\definecolor{rulegrey}{HTML}{CFC9C4}
+\definecolor{boxcream}{HTML}{FDF6E3}
+\definecolor{boxblue}{HTML}{EDF2F8}
+\definecolor{boxgreen}{HTML}{EDF5F2}
+\definecolor{boxred}{HTML}{FBEEF0}
+
+% ---------- page ----------
+\usepackage[margin=1.05in,top=1.15in,bottom=1.15in,headheight=15pt]{geometry}
+\setlength{\parskip}{0.55em}
+\setlength{\parindent}{0pt}
+\renewcommand{\arraystretch}{1.25}
+
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\headrule}{\hbox to\headwidth{\color{rulegrey}\leaders\hrule height \headrulewidth\hfill}}
+\fancyhead[L]{\footnotesize\color{cmudark}\scshape\nouppercase{\leftmark}}
+\fancyhead[R]{\footnotesize\color{cmudark}\thepage}
+\fancypagestyle{plain}{\fancyhf{}\renewcommand{\headrulewidth}{0pt}\fancyhead[R]{\footnotesize\color{cmudark}\thepage}}
+
+% ---------- headings ----------
+\titleformat{\chapter}[display]
+  {\normalfont\huge\bfseries\color{cmured}}
+  {\hfill\normalfont\sffamily\fontsize{58}{58}\selectfont\color{rulegrey}\thechapter}
+  {-12pt}
+  {\raggedright\color{cmudark}}
+  [\vspace{4pt}{\color{cmured}\titlerule[1.4pt]}]
+\titlespacing*{\chapter}{0pt}{-30pt}{26pt}
+
+\titleformat{\section}
+  {\normalfont\large\bfseries\color{cmured}}{\thesection}{0.7em}{}
+\titleformat{\subsection}
+  {\normalfont\normalsize\bfseries\color{cmudark}}{\thesubsection}{0.6em}{}
+\titlespacing*{\section}{0pt}{1.5em}{0.5em}
+\titlespacing*{\subsection}{0pt}{1.1em}{0.35em}
+
+% ---------- boxes ----------
+% page-breakable coloured callouts built on framed
+\newlength{\cbarw}\setlength{\cbarw}{2.6pt}
+\newenvironment{@cbox}[3]% #1 = background, #2 = bar colour, #3 = title text
+{%
+  \par\addvspace{9pt}%
+  \def\FrameCommand{{\color{#2}\vrule width \cbarw}\hspace{0pt}\colorbox{#1}}%
+  \MakeFramed{\advance\hsize-\width\FrameRestore}%
+  \noindent\hspace{6pt}%
+  \begin{minipage}{\dimexpr\linewidth-12pt\relax}%
+  \vspace{3pt}%
+  \ifstrempty{#3}{}{{\sffamily\bfseries\color{#2}#3\par\vspace{2pt}}}%
+  \setlength{\parskip}{0.45em}%
+}
+{%
+  \vspace{3pt}\end{minipage}\hspace{6pt}%
+  \endMakeFramed\par\addvspace{9pt}%
+}
+
+\newenvironment{defbox}[1][]{\begin{@cbox}{boxblue}{inkblue}{#1}}{\end{@cbox}}
+\newenvironment{keybox}[1][]{\begin{@cbox}{boxcream}{amber}{#1}}{\end{@cbox}}
+\newenvironment{algbox}[1][]{\begin{@cbox}{boxgreen}{seagreen}{#1}}{\end{@cbox}}
+\newenvironment{warnbox}[1][]{\begin{@cbox}{boxred}{cmured}{#1}}{\end{@cbox}}
+
+
+% ---------- numbered results + two-way proof links ----------
+\makeatletter
+\@ifundefined{c@chapter}
+  {\newcounter{resct}\renewcommand{\theresct}{\arabic{resct}}}
+  {\newcounter{resct}[chapter]\renewcommand{\theresct}{\thechapter.\arabic{resct}}}
+\makeatother
+
+% \begin{namedresult}{key}{Kind}{Title} ... \end{namedresult}
+\newenvironment{namedresult}[3]{%
+  \refstepcounter{resct}%
+  \begin{@cbox}{boxblue}{inkblue}{#2~\theresct\ \ #3}%
+  \label{res:#1}%
+}{\end{@cbox}}
+
+% pointer placed inside a result when its proof lives elsewhere
+\newcommand{\proofat}[1]{%
+  \par\vspace{1pt}%
+  {\footnotesize\color{seagreen}$\blacktriangleright$~\hyperref[pf:#1]{Proof on page~\pageref*{pf:#1}}}}
+
+% \begin{proofof}{key}{Kind}{Title} ... \end{proofof}
+\newenvironment{proofof}[3]{%
+  \begin{@cbox}{boxgreen}{seagreen}{Proof of #2~\ref*{res:#1} \ #3}%
+  \label{pf:#1}%
+  {\footnotesize\color{inkblue}$\blacktriangleleft$~\hyperref[res:#1]{Statement on page~\pageref*{res:#1}}}%
+  \par\vspace{2pt}%
+}{\end{@cbox}}
+
+% restatement block shown at a remote proof site
+\newcommand{\restated}[1]{%
+  \par{\small\itshape\color{cmudark}Restated.\ }\ignorespaces #1\par\vspace{2pt}}
+
+% proof-index row
+\newcommand{\pidx}[2]{%
+  \hyperref[res:#1]{#2} & \pageref*{res:#1} & \hyperref[pf:#1]{\pageref*{pf:#1}}\\}
+
+% cross-reference helper used in prose
+\newcommand{\seeres}[2]{\hyperref[res:#1]{#2~\ref*{res:#1}}}
+
+% ---------- notation macros ----------
+\newcommand{\Sspace}{\mathcal{S}}
+\newcommand{\Aspace}{\mathcal{A}}
+\newcommand{\Dbuf}{\mathcal{D}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Prob}{\mathbb{P}}
+\newcommand{\Real}{\mathbb{R}}
+\newcommand{\Hent}{\mathcal{H}}
+\newcommand{\KL}{D_{\mathrm{KL}}}
+\newcommand{\TV}{D_{\mathrm{TV}}}
+\newcommand{\Adv}{A}
+\newcommand{\Qs}{Q}
+\newcommand{\Vs}{V}
+\newcommand{\pol}{\pi}
+\newcommand{\beh}{\mu}
+\newcommand{\dpi}{d^{\pi}}
+\newcommand{\dmu}{d^{\mu}}
+\newcommand{\clip}{\operatorname{clip}}
+\newcommand{\Tr}{\mathcal{T}}
+\newcommand{\defeq}{\vcentcolon=}
+\newcommand{\st}{\;\middle|\;}
+
+% tighter lists
+\setlist[itemize]{leftmargin=1.25em,itemsep=2pt,topsep=3pt,parsep=0pt}
+\setlist[enumerate]{leftmargin=1.5em,itemsep=2pt,topsep=3pt,parsep=0pt}
+
+% tikz styles
+\tikzset{
+  node box/.style={draw=cmured,line width=0.8pt,rounded corners=2pt,fill=white,
+                   inner sep=5pt,font=\small,align=center},
+  node fill/.style={draw=cmured,line width=0.8pt,rounded corners=2pt,fill=cmured,
+                   text=white,inner sep=5pt,font=\small\bfseries,align=center},
+  node soft/.style={draw=rulegrey,line width=0.8pt,rounded corners=2pt,fill=softgrey,
+                   inner sep=5pt,font=\small,align=center},
+  flow/.style={-{Stealth[length=5pt]},line width=0.9pt,draw=cmudark},
+  flowdash/.style={-{Stealth[length=5pt]},line width=0.9pt,draw=cmudark,dashed},
+  lbl/.style={font=\scriptsize\itshape,inner sep=2pt},
+}
+
+% ---------- report additions ----------
+\captionsetup{font=small,labelfont={sf,bf,color=cmudark},textfont={color=cmudark},
+  labelsep=period,skip=6pt}
+
+\definecolor{snakeorange}{HTML}{F59E0B}
+\definecolor{snakeblue}{HTML}{38BDF8}
+\definecolor{boardbg}{HTML}{0E1426}
+
+\lstdefinestyle{report}{
+  basicstyle=\ttfamily\small\color{cmudark},
+  keywordstyle=\color{cmured}\bfseries,
+  commentstyle=\color{seagreen}\itshape,
+  stringstyle=\color{inkblue},
+  backgroundcolor=\color{softgrey},
+  frame=leftline, framerule=2.6pt, rulecolor=\color{rulegrey},
+  xleftmargin=10pt, framexleftmargin=6pt, aboveskip=8pt, belowskip=8pt,
+  columns=fullflexible, keepspaces=true, showstringspaces=false,
+  breaklines=true, tabsize=4,
+}
+\lstset{style=report}
+
+\pgfplotsset{
+  reportaxis/.style={
+    width=\linewidth, height=6.2cm,
+    axis line style={rulegrey}, tick style={rulegrey},
+    tick label style={font=\footnotesize,color=cmudark},
+    label style={font=\small,color=cmudark},
+    grid=major, major grid style={rulegrey!45},
+    legend style={draw=none,fill=none,font=\footnotesize,text=cmudark},
+    legend cell align=left,
+    every axis plot/.append style={line width=1.15pt},
+  },
+}
+
+\newcommand{\code}[1]{\texttt{\color{cmudark}#1}}
+\newcommand{\pct}[1]{#1\%}

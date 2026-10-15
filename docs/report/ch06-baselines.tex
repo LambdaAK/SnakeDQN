@@ -1,0 +1,111 @@
+\chapter{Scripted Opponents and Measurement}\label{ch:baselines}
+
+Self-play has no fixed point of reference: the opponent improves as fast as the
+learner. To know whether the learner is actually getting better, it is scored against
+opponents that never change. This chapter introduces five hand-written bots, ranks them
+against each other, and describes the harness that turns matches into numbers with error
+bars.
+
+\section{Five bots}
+
+Every bot, and every learned agent, has the same interface: a function from a batched
+game state and a seat index to one action per game. The harness cannot tell them apart.
+
+\begin{defbox}[The baseline bots]
+\begin{description}[leftmargin=1.2em,font=\normalfont\bfseries\color{inkblue}]
+\item[random] Uniform over the four moves, fatal ones included.
+\item[safe\_random] Uniform over the moves the action mask allows.
+\item[greedy] Among safe moves, the one that most reduces the Manhattan distance to the
+  nearest food.
+\item[flood\_fill] The strongest bot, built as a Battlesnake heuristic should be. See
+  below.
+\item[hamiltonian] For a single snake on an even board: follow a fixed cycle through
+  every cell. It never collides and eventually fills the board.
+\end{description}
+\end{defbox}
+
+\begin{algbox}[Flood-fill bot, per game]
+\begin{enumerate}
+\item Start from the safe moves.
+\item \textbf{Avoid losing head-to-heads.} Drop moves into a cell that an enemy at least
+  as long could also enter next turn, unless that leaves nothing.
+\item \textbf{Keep room to move.} Label the connected free regions of the board (tails
+  count as free) with \code{scipy.ndimage.label}. Keep moves whose region has at least as
+  many cells as the snake is long; if none do, keep those with the largest region.
+\item \textbf{Eat when it matters.} The snake is \emph{hungry} if its health is $\le 30$ or
+  any enemy is at least as long. Hungry: choose by nearest food, then larger region.
+  Otherwise: choose by larger region, then nearest food.
+\item Break remaining ties at random.
+\end{enumerate}
+\end{algbox}
+
+\section{The baseline ladder}
+
+Each pair of adjacent bots played 500 games on $11\times11$.
+
+\begin{center}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+\textbf{Matchup} & \textbf{Wins} & \textbf{Draws} & \textbf{Losses} & \textbf{Win rate (95\% CI)}\\
+\midrule
+flood\_fill \emph{vs} greedy & 370 & 22 & 108 & 74.0\% \ (70.0--77.7)\\
+greedy \emph{vs} safe\_random & 401 & 6 & 93 & 80.2\% \ (76.5--83.5)\\
+safe\_random \emph{vs} random & 498 & 1 & 1 & 99.6\% \ (98.6--99.9)\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The ordering random $<$ safe\_random $<$ greedy $<$ flood\_fill is strict and wide, and is
+enforced by a test that requires every step of the ladder to exceed 60\%.
+
+\begin{keybox}[What the ladder says about the game]
+Greedy is a strong-looking strategy: it grows quickly and wins most head-to-heads
+because it is usually longer. Flood-fill still beats it three games in four, almost
+entirely by not trapping itself. Space, not food, is the scarce resource on an
+$11\times11$ board with two snakes on it. The learned agent rediscovers this
+(Chapter~\ref{ch:duel}).
+\end{keybox}
+
+\subsection{Single-snake references}
+
+On its own, the greedy bot scores a mean of 23.7 food per game (95\% CI 22.9--24.5;
+max 57) over 500 games on $11\times11$ before it traps itself. The Hamiltonian bot is the
+opposite extreme: on $8\times8$ with $h_{\max}=64$, it fills the entire board in every one of
+20 games, finishing at length $65$ (Chapter~\ref{ch:game}) with a score of $62$.
+
+\section{The evaluation harness}
+
+\begin{algbox}[\code{run\_matches(policies, n\_games, seed)}]
+\begin{enumerate}
+\item Create one environment per game, $N = n_{\text{games}}$, with policy $i$ in seat $i$.
+\item Step all games together; every policy acts for its seat in every game.
+\item Record each environment's \emph{first} finished game only. Later games in an
+  environment that auto-reset are ignored, so short games are not over-counted.
+\item Per seat: a \emph{win} if it is the winner; a \emph{draw} if there is no winner and
+  the seat was active on the final turn; otherwise a \emph{loss}.
+\end{enumerate}
+\end{algbox}
+
+\begin{warnbox}[Counting each game exactly once]
+Without step 3, a fast-finishing environment would contribute several games while a slow
+one contributed one, biasing results toward whatever ends games quickly. A deterministic
+test pins this down. Two snakes that only ever move up die at the top wall at turn
+$r_0+1$, where $r_0$ is their start row. Every win, draw and loss, and the mean game
+length, is therefore predictable from the start rows, and the test checks them exactly.
+\end{warnbox}
+
+\subsection{Confidence intervals}
+
+\begin{defbox}[Wilson score interval]
+For $w$ wins in $n$ games, $\hat p = w/n$ and $z = 1.96$:
+\[
+  \frac{\hat p + \frac{z^2}{2n} \;\pm\; z\sqrt{\frac{\hat p(1-\hat p)}{n} + \frac{z^2}{4n^2}}}
+       {1 + \frac{z^2}{n}} .
+\]
+\end{defbox}
+
+The Wilson interval behaves well near $0$ and $1$, where most of the interesting results
+in this report sit; the naive normal interval would extend past $100\%$ there. For
+single-snake scores, a 95\% percentile bootstrap over 2{,}000 resamples gives the interval
+on the mean. Every run is reproducible from one seed: environments, food and bots all
+draw from seeded generators.

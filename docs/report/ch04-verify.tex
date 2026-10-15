@@ -1,0 +1,93 @@
+\chapter{Verifying the Simulator}\label{ch:verify}
+
+A fast simulator with a subtle bug is worse than a slow correct one: the agent will
+learn to exploit the bug, and every result built on top inherits it. The engine is
+therefore checked four independent ways, and all 106 automated tests run on every push.
+
+\begin{center}
+\begin{tikzpicture}[node distance=0.5cm and 0.6cm]
+  \node[node fill, text width=2.8cm] (eng) {Batched engine\\\footnotesize NumPy};
+  \node[node box, above left=0.5cm and 0.4cm of eng, text width=2.8cm] (unit) {Rule tests\\\footnotesize hand-built boards};
+  \node[node box, above right=0.5cm and 0.4cm of eng, text width=2.8cm] (oracle) {Reference oracle\\\footnotesize plain Python lists};
+  \node[node box, below left=0.5cm and 0.4cm of eng, text width=2.8cm] (batch) {Batch consistency\\\footnotesize $N$ games vs 1 game};
+  \node[node box, below right=0.5cm and 0.4cm of eng, text width=2.8cm] (js) {JavaScript parity\\\footnotesize browser port};
+  \foreach \n in {unit,oracle,batch,js} \draw[flowdash] (\n) -- (eng);
+\end{tikzpicture}
+\end{center}
+
+\section{Rule tests}
+
+Each rule has a test on a hand-built board: walls, self-collision, neck reversal, moving
+into a vacating tail (safe), moving into a tail that just ate (fatal), eating, starving,
+eating on the last health point (survives), head-to-head with longer, shorter and equal
+opponents, collisions with another snake's body and its vacating tail, actions for dead
+snakes and finished games (ignored), forced and random food spawns, a completely full
+board (no spawn, no crash), and malformed actions (rejected).
+
+\section{An independent reference implementation}
+
+\begin{defbox}[Reference oracle]
+A second implementation of the rules for a single game, written for readability:
+bodies are Python lists, collisions use a \code{Counter}, free cells are enumerated in
+row-major order. It shares no code with the batched engine.
+\end{defbox}
+
+\begin{algbox}[Oracle comparison]
+For many random games (mostly safe moves, 10\% random ones):
+\begin{enumerate}
+\item reset finished games, and snapshot every game into the oracle's representation;
+\item draw actions and spawn uniforms, and step \emph{both} implementations with them;
+\item require every body, health, alive flag, food set, turn counter and game-over flag
+  to match exactly.
+\end{enumerate}
+\end{algbox}
+
+The comparison runs on four standard configurations ($7\times7$ solo; $11\times11$ with 2
+and 4 snakes; $8\times8$ with 3), on an \emph{arena} configuration ($19\times19$, 8
+snakes, $f_{\min}=6$), and on a \emph{starvation} configuration.
+
+\begin{warnbox}[A test that passes can still be empty]
+The first oracle test passed, but replaying its seeds showed 1{,}753 deaths and
+\emph{zero} starvations: games end by collision long before 100 health runs out. The
+starvation rule, and its interaction with eating on the last health point, had never
+been compared. A dedicated test with $h_{\max}=10$ now runs the comparison and also
+asserts that starvations occurred: 300, 559 and 669 of them across three configurations.
+\end{warnbox}
+
+\section{Batch consistency}
+
+Stepping 256 games together must give exactly the same result as stepping each of them
+alone with the same actions and uniforms. This catches the most common class of
+vectorisation bug: indexing that accidentally mixes games. It is a real test because a
+single-game batch uses a different slice width ($L$ depends on the longest snake in the
+batch).
+
+\section{The browser port}
+
+The JavaScript rules are checked against Python-generated transitions: 6{,}400
+recorded steps across five configurations. For each step the test checks the action mask
+and the full observation of every snake before the step, and every body, health value,
+food cell and flag after it. The arena configuration also checks the head-centred
+window observation. Chapter~\ref{ch:browser} describes the port.
+
+\section{Summary}
+
+\begin{center}
+\begin{tabular}{@{}lrl@{}}
+\toprule
+\textbf{Suite} & \textbf{Tests} & \textbf{What it pins down}\\
+\midrule
+Rules: reset and step & 37 & every rule, on hand-built boards\\
+Reference oracle and batch consistency & 9 & exact agreement on random play\\
+Action mask & 5 & safe moves, tails, dead snakes\\
+Observations and rewards & 12 & channel contents, symmetry, windows\\
+Environment & 9 & auto-reset, masks, determinism\\
+Bots, ladder and evaluation harness & 25 & bot behaviour, draw accounting, CIs\\
+Agents and training & 4 & masking, smoke training run\\
+JavaScript parity & 1 & 6{,}400 recorded transitions\\
+Package and renderer & 4 & imports, terminal rendering\\
+\midrule
+\textbf{Total} & \textbf{106} & \\
+\bottomrule
+\end{tabular}
+\end{center}

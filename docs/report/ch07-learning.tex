@@ -1,0 +1,161 @@
+\chapter{Learning by Self-Play}\label{ch:learn}
+
+Both networks are trained with Proximal Policy Optimization (PPO), an on-policy
+actor--critic method, in a self-play loop: the policy being trained controls most of the
+snakes in every game. This chapter states the objective, the self-play scheme, the
+network, and the compute.
+
+\section{Actor and critic}
+
+A single network with parameters $\theta$ has two heads. Given observation $o$, it outputs
+action logits, from which a masked softmax gives the policy $\pi_\theta(a\mid o)$, and a
+scalar value estimate $V_\theta(o)$ of the return. The value head is what the web page
+displays as the network's ``confidence'' (Chapter~\ref{ch:browser}).
+
+\section{Advantages}
+
+\begin{defbox}[Generalized advantage estimation]
+For one seat's trajectory with rewards $r_t$ and episode boundaries $d_t$, define the TD
+residual and the advantage estimate
+\[
+  \delta_t = r_t + \gamma\,(1-d_t)\,V(o_{t+1}) - V(o_t),
+  \qquad
+  \hat A_t = \sum_{l\ge 0} (\gamma\lambda)^l \prod_{m=0}^{l-1}(1-d_{t+m})\;\delta_{t+l},
+\]
+with $\gamma=0.99$ and $\lambda=0.95$, computed by one backward pass over the rollout. The
+value targets are $\hat R_t = \hat A_t + V(o_t)$. The last step of a rollout bootstraps
+from the value of the following observation.
+\end{defbox}
+
+The factor $(1-d_t)$ is where the dones of Chapter~\ref{ch:obs} matter: since every slot of
+a finished game is marked done, no advantage ever leaks from one game into the next game
+played in the same environment slot.
+
+\section{The PPO objective}
+
+Let $\pi_{\text{old}}$ be the policy that collected the rollout and
+\[
+  \rho_t(\theta) = \frac{\pi_\theta(a_t\mid o_t)}{\pi_{\text{old}}(a_t\mid o_t)}.
+\]
+
+\begin{defbox}[Clipped surrogate and total loss]
+\[
+  L^{\text{CLIP}}(\theta) = \E_t\!\left[\min\!\Bigl(\rho_t(\theta)\,\hat A_t,\;
+     \clip\bigl(\rho_t(\theta),\,1-\epsilon,\,1+\epsilon\bigr)\,\hat A_t\Bigr)\right],
+  \qquad \epsilon = 0.2,
+\]
+\[
+  \mathcal{L}(\theta) = -L^{\text{CLIP}}(\theta)
+    + c_v\,\E_t\!\left[\tfrac12\bigl(V_\theta(o_t)-\hat R_t\bigr)^2\right]
+    - c_e\,\E_t\!\left[\Hent\bigl(\pi_\theta(\cdot\mid o_t)\bigr)\right],
+\]
+with $c_v=0.5$ and $c_e=0.01$. Advantages are normalised to zero mean and unit variance
+over each batch.
+\end{defbox}
+
+\begin{keybox}[Why PPO here]
+The game is on-policy friendly: experience is cheap (Chapter~\ref{ch:sim}), and the
+data distribution shifts every iteration anyway because the opponent \emph{is} the
+policy. PPO's clipping keeps each update close to the policy that gathered the data. That
+matters doubly in self-play, where a large jump changes both sides of every game at
+once.
+\end{keybox}
+
+\section{Self-play}
+
+\begin{algbox}[One training iteration]
+\begin{enumerate}
+\item With probability $0.3$ per environment, the non-learner seats are played by a
+  \emph{frozen snapshot}: one set of past weights, drawn uniformly from a pool for this
+  iteration. Otherwise the learner plays every seat.
+\item Run $T=64$ turns in all environments, sampling actions from the masked policy.
+  Store observations (float16), masks, actions, log-probabilities, values and rewards.
+\item Mark a transition \emph{valid} if its seat was played by the learner and was active
+  (Chapter~\ref{ch:obs}). Compute GAE over the full rollout, then keep valid transitions
+  only.
+\item Optimise $\mathcal{L}$ for 4 epochs over the valid transitions in minibatches of
+  4{,}096, using Adam (learning rate $2.5\times10^{-4}$, $\epsilon=10^{-5}$) and gradient
+  norm clipping at $0.5$.
+\item Every 10 iterations, add the current weights to the snapshot pool (the most recent
+  20 are kept). Every 25--30 iterations, evaluate against the scripted bots and save a
+  checkpoint.
+\end{enumerate}
+\end{algbox}
+
+\begin{keybox}[Two sources of opponents]
+Playing the current self is the strongest signal, and every seat yields training data,
+so a two-snake game produces two transitions per turn. Playing frozen past selves guards
+against \emph{forgetting}: a policy that only ever meets its current self can drift into a
+strategy that loses to something it used to beat. Seats a snapshot plays generate no
+training data.
+\end{keybox}
+
+Each environment re-draws its opponent type whenever its game ends. In the duel run,
+$512$ environments $\times$ $64$ turns gives $32{,}768$ game turns per iteration and
+about $55{,}000$ valid learner transitions. The arena run uses $256$ environments of six
+snakes each.
+
+\section{The network}
+
+\begin{center}
+\begin{tikzpicture}[node distance=0.42cm and 0.38cm,
+    layer/.style={node box, minimum height=1.25cm, text width=1.55cm},
+    hd/.style={node fill, text width=1.25cm}]
+  \node[node soft, text width=1.65cm, minimum height=1.25cm] (in) {input\\[1pt]\scriptsize $C{+}1$ planes\\$H\times W$};
+  \node[layer, right=of in] (c1) {conv $3{\times}3$\\\scriptsize 32, ReLU};
+  \node[layer, right=of c1] (c2) {conv $3{\times}3$\\\scriptsize 64, ReLU};
+  \node[layer, right=of c2] (c3) {conv $3{\times}3$\\\scriptsize 64, ReLU};
+  \node[layer, right=of c3] (fc) {linear\\\scriptsize $64HW\!\to\!h$, ReLU};
+  \node[hd, above right=0.05cm and 0.5cm of fc] (pi) {policy\\\scriptsize 4 logits};
+  \node[hd, below right=0.05cm and 0.5cm of fc] (v) {value\\\scriptsize 1 scalar};
+  \draw[flow] (in) -- (c1);
+  \draw[flow] (c1) -- (c2);
+  \draw[flow] (c2) -- (c3);
+  \draw[flow] (c3) -- (fc);
+  \draw[flow] (fc.east) -- (pi.west);
+  \draw[flow] (fc.east) -- (v.west);
+\end{tikzpicture}
+\captionof{figure}{The actor--critic. All convolutions use padding 1, so spatial size is
+preserved; the extra input plane is the constant ones plane that reveals walls through
+zero padding.}
+\label{fig:net}
+\end{center}
+
+\begin{center}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+& \textbf{Input} $C{+}1,\,H{\times}W$ & \textbf{Hidden} $h$ & \textbf{Parameters}\\
+\midrule
+Duel network & $9,\ 11\times11$ & 256 & 2{,}042{,}053\\
+Arena network & $10,\ 17\times17$ (window) & 128 & 2{,}426{,}597\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Almost all parameters sit in the first linear layer, $64HW\cdot h$, which is why the arena
+network halves $h$ to compensate for its larger window. A fully convolutional design
+would remove the dependence on $H\times W$ altogether. The window observation achieves
+the same independence from board size while keeping this simple architecture.
+
+\section{Compute}
+
+Both networks trained for 2.5 hours on an Apple M3 Max, using PyTorch's Metal (MPS)
+backend for the network and the CPU for the simulator.
+
+\begin{center}
+\begin{tabular}{@{}lcc@{}}
+\toprule
+& \textbf{Seconds per iteration} & \textbf{Relative}\\
+\midrule
+CPU, 12 threads & $\approx 70$ & $1\times$\\
+Apple GPU (MPS) & $\approx 5$--$6$ & $\approx 10\times$\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{warnbox}[The GPU mattered more than expected]
+The network is small, so CPU training looked plausible. In practice the PPO update,
+four epochs over $\sim55{,}000$ samples through a $2$M-parameter network, dominated each
+iteration, and moving it to the GPU was the difference between a 2.5-hour run and a
+day-long one. The simulator stayed on the CPU throughout.
+\end{warnbox}

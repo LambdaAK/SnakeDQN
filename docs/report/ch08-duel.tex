@@ -1,0 +1,111 @@
+\chapter{Results: The Duel}\label{ch:duel}
+
+The duel network plays two-snake Battlesnake on the standard $11\times11$ board. It
+trained for 2.5 hours: 1{,}109 iterations, 36.3 million game turns.
+
+\section{Learning curve}
+
+\begin{center}
+\begin{tikzpicture}
+\begin{axis}[reportaxis, xmin=0, xmax=37, ymin=0, ymax=100,
+  xlabel={self-play game turns (millions)}, ylabel={win rate (\%)},
+  legend style={at={(0.5,-0.24)},anchor=north,legend columns=2,/tikz/every even column/.append style={column sep=1.2em}}]
+\addplot[color=cmured] table[x=steps, y=flood, col sep=comma] {data/duel_eval.csv};
+\addlegendentry{vs flood-fill bot}
+\addplot[color=inkblue] table[x=steps, y=greedy, col sep=comma] {data/duel_eval.csv};
+\addlegendentry{vs greedy bot}
+\addplot[color=rulegrey, dashed, line width=0.9pt, forget plot] coordinates {(0,74) (37,74)};
+\node[font=\scriptsize\itshape, color=cmudark, anchor=north west] at (axis cs:14,73) {flood-fill vs greedy: 74\%};
+\addplot[color=amber, densely dotted, line width=1pt, forget plot] coordinates {(33.59,0) (33.59,100)};
+\node[font=\scriptsize\itshape, color=amber!80!black, anchor=east, align=right] at (axis cs:33.2,40) {selected\\checkpoint};
+\end{axis}
+\end{tikzpicture}
+\captionof{figure}{Win rate of the duel network during training, measured every 25
+iterations over 200 games against each bot (deterministic play). The grey line is the
+flood-fill bot's own win rate against greedy, for scale.}
+\label{fig:duel-curve}
+\end{center}
+
+The curve has three phases.
+\begin{itemize}
+\item \textbf{Survival} (0--4M turns). The network first learns not to die. Against the
+  greedy bot it starts at 54\% almost immediately, because greedy plays into dead ends
+  that a cautious random walker avoids. Against flood-fill it starts at 11\%.
+\item \textbf{Competence} (4--10M). The win rate against flood-fill climbs to about
+  80\% by 10.6M turns. From 9M turns on, the network beats flood-fill more often than
+  flood-fill beats greedy.
+\item \textbf{Refinement} (10--36M). Slow gains to around 90\% against both bots, with
+  checkpoint-to-checkpoint noise of a few points, about what 200-game evaluations
+  produce.
+\end{itemize}
+
+\section{Training dynamics}
+
+\begin{center}
+\begin{minipage}{0.49\linewidth}
+\begin{tikzpicture}
+\begin{axis}[reportaxis, width=\linewidth, height=5cm, xmin=0, xmax=37, ymin=0,
+  xlabel={turns (millions)}, ylabel={mean game length},
+  title={\small\color{cmudark}Self-play game length}]
+\addplot[color=cmured] table[x=steps, y=turns, col sep=comma] {data/duel_train.csv};
+\end{axis}
+\end{tikzpicture}
+\end{minipage}\hfill
+\begin{minipage}{0.49\linewidth}
+\begin{tikzpicture}
+\begin{axis}[reportaxis, width=\linewidth, height=5cm, xmin=0, xmax=37, ymin=0, ymax=1.2,
+  xlabel={turns (millions)}, ylabel={policy entropy (nats)},
+  title={\small\color{cmudark}Policy entropy}]
+\addplot[color=inkblue] table[x=steps, y=entropy, col sep=comma] {data/duel_train.csv};
+\addplot[color=rulegrey, dashed, line width=0.9pt] coordinates {(0,1.0986) (37,1.0986)};
+\node[font=\scriptsize\itshape, color=cmudark, anchor=north east] at (axis cs:36.5,1.07) {uniform over 3 moves, $\ln 3$};
+\end{axis}
+\end{tikzpicture}
+\end{minipage}
+\captionof{figure}{Left: mean length of self-play games, which grows from about 30 to
+about 185 turns as both sides learn to survive. Right: entropy of the masked policy,
+falling from 0.95 nats (close to uniform over the usual three safe moves) to about 0.3
+nats as play becomes decisive.}
+\label{fig:duel-dynamics}
+\end{center}
+
+Self-play games lengthening sixfold is the clearest sign that both copies of the network
+are improving together: neither side finds easy kills against itself any more. Entropy
+falls steadily but never collapses. The $0.01$ entropy bonus keeps enough randomness
+that exploration continues to the end of the run.
+
+\section{Final evaluation}
+
+The checkpoint with the best score (win rate $+\,\tfrac12$ draw rate against flood-fill)
+was iteration 1{,}025, at 33.6M turns. It was then evaluated on 1{,}000 \emph{fresh}
+games against each bot, with a seed never used during training or selection.
+
+\begin{center}
+\begin{tabular}{@{}lcccccc@{}}
+\toprule
+\textbf{Opponent} & \textbf{W} & \textbf{D} & \textbf{L} & \textbf{Win rate (95\% CI)} &
+  \textbf{Game length} & \textbf{Final length}\\
+& & & & & \footnotesize turns & \footnotesize net\ /\ bot\\
+\midrule
+flood\_fill & 914 & 4 & 82 & \textbf{91.4\%} \ (89.5--93.0) & 99.3 & 13.1 / 12.5\\
+greedy & 902 & 64 & 34 & \textbf{90.2\%} \ (88.2--91.9) & 63.1 & \hphantom{1}9.4 / 10.5\\
+safe\_random & 994 & 2 & 4 & \textbf{99.4\%} \ (98.7--99.7) & 36.7 & \hphantom{1}8.3 / \hphantom{1}4.0\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{keybox}[It wins without out-eating its opponent]
+Against the greedy bot the network wins 90\% of games while ending them \emph{shorter}
+than its opponent, at 9.4 segments against 10.5. It is not winning the race for food. It
+wins by position: cutting off space, steering the opponent toward walls and its own
+body, and declining head-to-heads it would lose. These are exactly the ideas built into
+the flood-fill bot by hand, and that bot also beats greedy. The network found them from a
+$\pm1$ signal, and against flood-fill itself it wins 91\% of games.
+\end{keybox}
+
+\begin{warnbox}[Draws against greedy]
+6.4\% of games against greedy are draws, against 0.4\% for flood-fill. Greedy charges
+straight at food; when both snakes are equally long and arrive at the same cell, both
+die. The network does not always avoid this; it treats a draw as better than the
+risk of losing. A reward that penalised draws more than $0$ would push it further.
+\end{warnbox}

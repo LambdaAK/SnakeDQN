@@ -1,0 +1,118 @@
+\chapter{Results: The Arena}\label{ch:arena}
+
+\begin{center}
+\includegraphics[width=0.56\linewidth]{figures/arena_board.png}
+\captionof{figure}{An arena game at turn 120: six copies of the arena network on a
+$19\times19$ board, all six still alive.}
+\label{fig:arena-board}
+\end{center}
+
+The arena is a free-for-all: six snakes on a $19\times19$ board, with at least six food
+on the board at all times, so a crowded board does not simply starve. The arena network
+reads the $17\times17$ window of Section~\ref{sec:window}, so the same weights also play
+the browser's arena with anywhere from 2 to 8 snakes.
+
+\section{Measuring a six-player game}
+
+\begin{keybox}[One against five]
+A six-player game cannot be scored as a single head-to-head. Instead the network takes
+one seat and the other \emph{five} are all the same scripted bot. If the network were
+exactly as good as the bot, it would win $1/6\approx16.7\%$ of games. Every arena win rate
+should be read against that fair share, not against 50\%.
+\end{keybox}
+
+\section{Learning curve}
+
+\begin{center}
+\begin{tikzpicture}
+\begin{axis}[reportaxis, xmin=0, xmax=16.5, ymin=0, ymax=100,
+  xlabel={self-play game turns (millions)}, ylabel={win rate as 1 of 6 snakes (\%)},
+  legend style={at={(0.5,-0.24)},anchor=north,legend columns=2,/tikz/every even column/.append style={column sep=1.2em}}]
+\addplot[color=cmured] table[x=steps, y=flood, col sep=comma] {data/arena_eval.csv};
+\addlegendentry{vs $5\times$ flood-fill}
+\addplot[color=inkblue] table[x=steps, y=greedy, col sep=comma] {data/arena_eval.csv};
+\addlegendentry{vs $5\times$ greedy}
+\addplot[color=rulegrey, dashed, line width=0.9pt, forget plot] coordinates {(0,16.67) (16.5,16.67)};
+\node[font=\scriptsize\itshape, color=cmudark, anchor=north east] at (axis cs:16.2,15.5) {fair share, $1/6$};
+\addplot[color=amber, densely dotted, line width=1pt, forget plot] coordinates {(8.847,0) (8.847,100)};
+\node[font=\scriptsize\itshape, color=amber!80!black, anchor=north west, align=left] at (axis cs:9.0,30) {highest\\60-game score};
+\end{axis}
+\end{tikzpicture}
+\captionof{figure}{Arena win rate during training, evaluated every 30 iterations over 60
+games. The dotted line marks the checkpoint that scored highest on these small
+evaluations; it was not the one finally used (see below).}
+\label{fig:arena-curve}
+\end{center}
+
+Against five greedy bots the network is ahead of its fair share from the very first
+checkpoint, at 77\% after half a million turns. Greedy bots in a crowd mostly kill each
+other, and a snake that merely avoids them survives. Against five flood-fill bots it
+starts below fair share, at 8\%, and passes 40\% within 4M turns.
+
+\begin{center}
+\begin{tikzpicture}
+\begin{axis}[reportaxis, height=4.8cm, xmin=0, xmax=16.5, ymin=0,
+  xlabel={self-play game turns (millions)}, ylabel={mean game length}]
+\addplot[color=cmured] table[x=steps, y=turns, col sep=comma] {data/arena_train.csv};
+\end{axis}
+\end{tikzpicture}
+\captionof{figure}{Mean length of six-snake self-play games, growing from about 50 turns
+to over 1{,}000 as the snakes learn to share the board without colliding.}
+\label{fig:arena-length}
+\end{center}
+
+\section{Choosing the checkpoint}
+
+\begin{warnbox}[The ``best'' checkpoint was not the best]
+Checkpoints were scored during training on only 60 games each. Picking the maximum of 33
+noisy scores favours a checkpoint that got lucky, a selection bias. The highest scorer
+was iteration 540, at 8.8M turns, yet later checkpoints looked at least as strong. Two
+candidates were therefore compared on a separate seed, 777, never used for the final
+numbers:
+\begin{center}
+\begin{tabular}{@{}lcc@{}}
+\toprule
+\textbf{200 games, seed 777} & \textbf{vs $5\times$ flood-fill} & \textbf{vs $5\times$ greedy}\\
+\midrule
+iteration 540 (highest 60-game score) & 35.0\% & 81.0\%\\
+iteration 971 (end of training) & \textbf{47.5\%} & \textbf{92.5\%}\\
+\bottomrule
+\end{tabular}
+\end{center}
+The final checkpoint was chosen. The reported results below come from a third seed,
+12345, so neither the training-time scores nor this comparison inflates them.
+\end{warnbox}
+
+\section{Final evaluation}
+
+\begin{center}
+\begin{tabular}{@{}lcccccc@{}}
+\toprule
+\textbf{Opponents} & \textbf{W} & \textbf{D} & \textbf{L} & \textbf{Win rate (95\% CI)} &
+  \textbf{Game length} & \textbf{Final length}\\
+\textbf{($\times5$)} & & & & & \footnotesize turns & \footnotesize net\ /\ bots\\
+\midrule
+flood\_fill & 134 & 2 & 164 & \textbf{44.7\%} \ (39.1--50.3) & 385.2 & 43.0 / 25.1\\
+greedy & 264 & 2 & 34 & \textbf{88.0\%} \ (83.8--91.2) & 163.8 & 24.7 / 14.3\\
+safe\_random & 296 & 0 & 4 & \textbf{98.7\%} \ (96.6--99.5) & 205.7 & 32.4 / \hphantom{1}5.3\\
+\bottomrule
+\end{tabular}
+\end{center}
+\begin{center}
+\footnotesize\color{cmudark} 300 games per row; fair share $16.7\%$.
+\end{center}
+
+\begin{keybox}[Nearly three times its fair share]
+Against a table of five flood-fill bots, each built to protect its own space, the network
+wins 44.7\% of six-player games, $2.7\times$ the $16.7\%$ an equal player would get. It
+also grows much longer than its opponents, 43 segments against 25. In a crowded game,
+length is both a weapon (it wins head-to-heads) and a wall that takes space from
+everyone else, and the network uses it as both.
+\end{keybox}
+
+\section{The window generalises}
+
+Because the network never sees the whole board, nothing in it depends on the board size
+or the number of snakes. In the browser it plays two to eight snakes on $19\times19$
+without retraining. No numbers are reported for configurations other than the
+six-snake training setup, so how well this generalisation holds up is unmeasured.

@@ -1,0 +1,105 @@
+\chapter{Into the Browser}\label{ch:browser}
+
+The final layer puts both networks on a static web page. There is no server: the game
+rules, the networks and the rendering all run in the visitor's browser.
+
+\section{Architecture}
+
+\begin{center}
+\begin{tikzpicture}[node distance=0.7cm and 1.1cm]
+  \node[node soft, text width=2.4cm] (ckpt) {PyTorch\\checkpoint};
+  \node[node box, right=of ckpt, text width=2.4cm] (onnx) {ONNX graph\\\footnotesize opset 17};
+  \node[node fill, right=of onnx, text width=2.6cm] (ort) {ONNX Runtime Web\\\footnotesize WebAssembly};
+  \node[node box, below=0.9cm of ort, text width=3.0cm] (rules) {\code{rules.js}\\\footnotesize rules, observations};
+  \node[node box, left=of rules, text width=2.9cm] (loop) {\code{app.js}\\\footnotesize clock, input, panel};
+  \node[node soft, left=of loop, text width=2.4cm] (canvas) {Canvas\\\footnotesize 60 frames/s};
+  \draw[flow] (ckpt) -- node[lbl,above=1pt]{export} (onnx);
+  \draw[flow] (onnx) -- (ort);
+  \draw[flow] (rules) -- node[lbl,right]{observations} (ort);
+  \draw[flow] (ort.south west) to[bend right=15] node[lbl,above left,pos=0.4]{moves} (loop.north east);
+  \draw[flow] (loop) -- (rules);
+  \draw[flow] (loop) -- (canvas);
+\end{tikzpicture}
+\end{center}
+
+\begin{itemize}
+\item \textbf{Export.} Each checkpoint is exported to ONNX (opset 17) with a dynamic batch
+  dimension. ONNX Runtime then runs the export on random inputs, and the export
+  script requires its logits and values to match PyTorch to within a relative $10^{-3}$.
+\item \textbf{Inference.} ONNX Runtime Web 1.20.1 runs on WebAssembly with a single
+  thread, which avoids the cross-origin isolation headers that multi-threading would
+  require of the host. The duel network (8.2\,MB) loads with the page; the arena network
+  (9.7\,MB) loads the first time Arena mode is opened.
+\item \textbf{Rules.} \code{rules.js} is a single-game port of the engine, including the
+  eight-plane and window observations, and is checked against the Python engine on
+  6{,}400 transitions (Chapter~\ref{ch:verify}). What the page shows is the game the
+  networks were trained on, not an approximation of it.
+\end{itemize}
+
+\section{Modes}
+
+\begin{center}
+\begin{tabular}{@{}llp{0.5\linewidth}@{}}
+\toprule
+\textbf{Mode} & \textbf{Board} & \textbf{Seats}\\
+\midrule
+AI vs AI & $11\times11$ & duel network in both seats, sampling from its policy\\
+You vs AI & $11\times11$ & duel network (most likely move) against the player\\
+AI vs bot & $11\times11$ & duel network against the greedy bot\\
+Arena & $19\times19$ & 2--8 copies of the arena network, sampling; $f_{\min}$ equals the snake count\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{warnbox}[Two deterministic copies mirror each other]
+With both seats playing their most likely move, the first AI-vs-AI games ended in
+identical head-on draws on turn four. The starts are symmetric, so two copies of one
+deterministic policy make symmetric choices into the centre food. The all-AI modes
+therefore \emph{sample} from the policy, as in training. The modes against a human or a
+bot play the most likely move, as in evaluation.
+\end{warnbox}
+
+A side panel shows, live, the move probabilities of one network for its next turn and
+its value estimate $V_\theta$, together with each snake's length and health.
+
+\section{Continuous motion from a turn-based game}
+
+The game advances in whole turns, but the page must look fluid, like a modern Snake
+game. The fix is to separate logic from drawing: the rules move in discrete steps, and
+the renderer interpolates between the last two states.
+
+\begin{defbox}[Interpolated body]
+Let $p_0,\dots,p_{L'-1}$ be a snake's cells before the latest turn and $c_0,\dots,c_{L-1}$
+after it, so $c_i=p_{i-1}$ for $i\ge1$. At fraction $t\in[0,1]$ of the turn, the snake is
+drawn as the polyline
+\[
+  \bigl(\,(1-t)\,p_0 + t\,c_0,\;\; c_1,\;\dots,\;c_{L-1},\;\; (1-t)\,p_{L'-1} + t\,c_{L-1}\,\bigr)
+\]
+through cell centres, stroked with round joins and caps.
+\end{defbox}
+
+At $t=1$ the head sits at $c_0$ and the tail at $c_{L-1}$. At the start of the next turn,
+$t=0$, they sit at $p'_0 = c_0$ and $p'_{L-1}=c_{L-1}$: the drawing is continuous across
+turn boundaries. When a snake has just eaten, the duplicated tail makes the last two
+points coincide, so the tail correctly stays put.
+
+\begin{warnbox}[Three bugs on the way to fluid]
+\begin{enumerate}
+\item \textbf{Ease-in, ease-out.} The first version eased each step with a smoothstep
+  curve. Its velocity is zero at both ends of every turn, so the snake visibly stopped at
+  every cell. Linear interpolation moves at constant speed.
+\item \textbf{Stalls between turns.} Each turn waited for the network's next move before
+  starting. The fix computes the AI's moves for the next turn while the current one
+  animates, and drives the game from the animation loop on a fixed-cadence clock. A
+  frame-by-frame measurement then showed the snake moving in every one of 90 consecutive
+  frames.
+\item \textbf{Diagonal tails.} The first polyline joined the moving tail straight to
+  $c_{L-2}$, skipping $c_{L-1}$, the cell the tail is entering. At a corner that cut the
+  corner diagonally. Including $c_{L-1}$, as in the definition above, keeps every segment
+  on the grid.
+\end{enumerate}
+\end{warnbox}
+
+Player input is buffered and read at the last moment before each turn. Arrow keys, WASD,
+swipes, and clicks on the board, which steer toward the clicked cell, all feed the same
+queue. A reversal onto the snake's own neck is ignored rather than allowed to kill it.

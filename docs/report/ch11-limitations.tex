@@ -1,0 +1,45 @@
+\chapter{Limitations and Next Steps}\label{ch:limits}
+
+\section{What the results do not show}
+
+\begin{warnbox}[Caveats on the numbers]
+\begin{itemize}
+\item \textbf{One seed per network.} Each network is a single 2.5-hour run. The
+  confidence intervals cover evaluation noise, not training noise. A second seed could
+  land a few points higher or lower.
+\item \textbf{Scripted opponents only.} The win rates are against hand-written bots.
+  They establish that the networks are strong relative to sensible heuristics, not how
+  they rank among competitive Battlesnake agents or human players.
+\item \textbf{Exact replay needs more care.} The simulator and evaluation are seeded and
+  reproducible. Training on the Apple GPU is not bit-for-bit deterministic, so rerunning
+  training reproduces the curves only statistically.
+\item \textbf{Arena generalisation is unmeasured.} The arena network is evaluated only
+  in its training configuration of six snakes. Its play with 2, 3 or 8 snakes in the
+  browser is plausible but untested.
+\item \textbf{Draws are free.} The reward gives a draw $0$, the same as a game still in
+  progress. Against greedy this leaves 6.4\% of games drawn (Chapter~\ref{ch:duel}).
+\end{itemize}
+\end{warnbox}
+
+\section{Next steps}
+
+\begin{keybox}[An algorithm comparison]
+The environment and harness were built so that algorithms can be compared fairly, and
+this is the natural next experiment. DQN and its Rainbow components (double Q-learning,
+dueling heads, prioritised replay, $n$-step returns), A2C and PPO would each be trained
+on the same task with the same budget of environment turns, across several seeds,
+and compared on learning curves and final win rates. Value-based methods face a
+particular challenge in self-play, where the replay buffer holds games against
+opponents who no longer exist.
+\end{keybox}
+
+\begin{itemize}
+\item \textbf{A league and Elo ratings.} Rate every checkpoint against every other, so
+  progress is measured within self-play itself and not only against fixed bots.
+\item \textbf{A fully convolutional network.} Removing the large linear layer would make
+  the duel network board-size independent too, and cut its size several-fold.
+\item \textbf{A public ladder.} The rules follow the official game, so the duel network
+  could play live on the public Battlesnake arena behind a small server.
+\item \textbf{Reward design.} Penalise draws, or rank the five losers in the arena by
+  survival time, so that coming second is worth more than coming last.
+\end{itemize}
