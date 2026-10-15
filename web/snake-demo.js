@@ -51,7 +51,6 @@ const TEMPLATE = `
         <span data-sd="arena-count">6 snakes</span>
         <button type="button" data-sd="more" aria-label="More snakes">+</button>
       </div>
-      <p class="sd-meta" data-sd="tally"></p>
     </div>
   </div>
   <div class="sd-dpad" data-sd="dpad" hidden>
@@ -112,7 +111,6 @@ export function mountSnakeDemo(root, options = {}) {
   let humanQueue = [];
   let aiPlan = null; // AI moves for the current state, decided while the last move animates
   let planToken = 0;
-  const tally = { watch: [0, 0, 0], play: [0, 0, 0], bot: [0, 0, 0], arena: Array(9).fill(0) };
 
   const controllers = () => MODES[mode].controllers ?? Array(arenaN).fill("ai");
   const names = () => MODES[mode].names ?? COLOR_NAMES.slice(0, arenaN);
@@ -204,8 +202,6 @@ export function mountSnakeDemo(root, options = {}) {
 
   function onGameOver() {
     const w = game.winner;
-    const t = tally[mode];
-    if (w === -1) t[mode === "arena" ? 8 : 2]++; else t[w]++;
     let title;
     if (w === -1) title = "Draw";
     else if (mode === "play") title = w === 1 ? "You win!" : "The AI wins";
@@ -351,11 +347,6 @@ export function mountSnakeDemo(root, options = {}) {
       return `<li class="${s.alive ? "" : "sd-dead"}"><span class="sd-dot" style="background:${COLORS[i % COLORS.length]}"></span>
         <span>${label[i]}</span><span class="sd-len">${s.body.length}</span></li>`;
     }).join("");
-
-    const t = tally[mode];
-    $("tally").textContent = mode === "arena"
-      ? `Wins: ${label.map((n, i) => `${n} ${t[i]}`).join(" · ")}`
-      : `Wins: ${label[0]} ${t[0]} · ${label[1]} ${t[1]}`;
   }
 
   // ---------- networks ----------

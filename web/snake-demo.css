@@ -71,7 +71,6 @@
 .snake-demo .sd-pills { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .snake-demo .sd-stepper span { font-size: 12px; color: var(--sd-muted); min-width: 62px; text-align: center; }
 .snake-demo .sd-stepper button { width: 26px; padding: 4px 0; }
-.snake-demo .sd-meta { font-size: 13px; color: var(--sd-faint); }
 
 .snake-demo .sd-dpad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 14px; }
 .snake-demo .sd-dpad button { border: 1px solid var(--sd-line); background: none; border-radius: 10px; padding: 10px 0; font-size: 18px; color: var(--sd-muted); }
