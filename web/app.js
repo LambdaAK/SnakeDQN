@@ -1,4 +1,4 @@
-import { actionMask, DIRECTIONS, greedyAction, newGame, NUM_CHANNELS, observation, step, windowObservation } from "./rules.js?v=9";
+import { actionMask, DIRECTIONS, greedyAction, newGame, NUM_CHANNELS, observation, step, windowObservation } from "./rules.js?v=12";
 
 const COLORS = ["#f59e0b", "#38bdf8", "#a78bfa", "#34d399", "#f472b6", "#facc15", "#fb7185", "#22d3ee"];
 const COLOR_NAMES = ["Orange", "Blue", "Violet", "Green", "Pink", "Yellow", "Coral", "Cyan"];
@@ -13,7 +13,17 @@ const MODES = {
   bot: { board: 11, model: "duel", names: ["AI", "Greedy bot"], controllers: ["ai", "greedy"] },
   arena: { board: 19, model: "arena" },
 };
-const arenaSize = () => Number($("arena-snakes").value);
+let arenaN = 6;
+const arenaSize = () => arenaN;
+const SPEEDS = [[1, 180], [2, 100], [0.5, 320]]; // [label multiplier, ms per move]
+let speedIdx = 0;
+// Board colours follow the page theme (light paper or dark), read from the CSS tokens.
+let theme = {};
+function readTheme() {
+  const css = getComputedStyle(document.documentElement);
+  const v = (name) => css.getPropertyValue(name).trim();
+  theme = { bg: v("--bg"), line: v("--line"), food: v("--food") };
+}
 const controllers = () => MODES[mode].controllers ?? Array(arenaSize()).fill("ai");
 const names = () => MODES[mode].names ?? COLOR_NAMES.slice(0, arenaSize());
 const session = () => sessions[MODES[mode].model];
@@ -205,11 +215,12 @@ function render(t) {
   if (!game) return;
   const B = game.boardSize, W = canvas.width, cell = W / B;
   ctx.clearRect(0, 0, W, W);
+  ctx.fillStyle = theme.bg;
+  ctx.fillRect(0, 0, W, W);
+  ctx.fillStyle = theme.line;
+  const dot = Math.max(1.5, cell * 0.06);
   for (let r = 0; r < B; r++) {
-    for (let c = 0; c < B; c++) {
-      ctx.fillStyle = (r + c) % 2 ? "#10172b" : "#0e1426";
-      ctx.fillRect(c * cell, r * cell, cell, cell);
-    }
+    for (let c = 0; c < B; c++) ctx.fillRect((c + 0.5) * cell - dot / 2, (r + 0.5) * cell - dot / 2, dot, dot);
   }
   for (let i = 0; i < B * B; i++) {
     const now = game.food[i], before = prev.food[i];
@@ -220,9 +231,7 @@ function render(t) {
     if (scale <= 0) continue;
     const r = Math.floor(i / B), c = i % B;
     ctx.save();
-    ctx.shadowColor = "#f43f5e";
-    ctx.shadowBlur = cell * 0.5;
-    ctx.fillStyle = "#f43f5e";
+    ctx.fillStyle = theme.food;
     ctx.beginPath();
     ctx.arc((c + 0.5) * cell, (r + 0.5) * cell, cell * 0.24 * scale, 0, Math.PI * 2);
     ctx.fill();
@@ -263,7 +272,7 @@ function drawSnake(before, snake, color, cell, t) {
   ctx.lineWidth = cell * 0.64;
   // Body: one continuous rounded stroke, a slightly darker shade toward the tail.
   for (let j = points.length - 1; j > 0; j--) {
-    ctx.strokeStyle = mix(color, "#0e1426", 0.4 * (j / points.length));
+    ctx.strokeStyle = mix(color, theme.bg, 0.35 * (j / points.length));
     ctx.beginPath();
     ctx.moveTo(points[j][0], points[j][1]);
     ctx.lineTo(points[j - 1][0], points[j - 1][1]);
@@ -328,24 +337,17 @@ function updatePanel() {
     order.sort((a, b) => (game.snakes[b].alive - game.snakes[a].alive)
       || (game.snakes[b].body.length - game.snakes[a].body.length));
   }
-  $("snakes").classList.toggle("compact", game.snakes.length > 2);
   $("snakes").innerHTML = order.map((i) => {
-    const s = game.snakes[i], color = COLORS[i % COLORS.length];
-    return `<div class="snake-card ${s.alive ? "" : "dead"}">
-      <span class="dot" style="background:${color}"></span>
-      <div>
-        <div class="name">${label[i]}</div>
-        <div class="health"><div style="width:${s.alive ? (100 * s.health) / game.maxHealth : 0}%;background:${color}"></div></div>
-      </div>
-      <span class="meta">length ${s.body.length}${s.alive ? "" : " · out"}</span>
-    </div>`;
+    const s = game.snakes[i];
+    return `<li class="${s.alive ? "" : "dead"}"><span class="dot" style="background:${COLORS[i % COLORS.length]}"></span>
+      <span>${label[i]}</span><span class="len">${s.body.length}</span></li>`;
   }).join("");
 
   $("probs").innerHTML = ARROWS.map((arrow, a) => {
     const p = brain.probs ? brain.probs[a] : 0;
-    return `<div class="prob ${a === brain.chosen ? "chosen" : ""}">
-      <span>${arrow}</span><div class="bar"><div style="width:${(100 * p).toFixed(1)}%"></div></div>
-      <span class="pct">${brain.probs ? Math.round(100 * p) + "%" : "–"}</span></div>`;
+    return `<li class="${a === brain.chosen ? "chosen" : ""}">
+      <span>${arrow}</span><div class="track"><div style="width:${(100 * p).toFixed(1)}%"></div></div>
+      <span class="pct">${brain.probs ? Math.round(100 * p) + "%" : "–"}</span></li>`;
   }).join("");
 
   const bar = $("value-bar");
@@ -358,7 +360,7 @@ function updatePanel() {
     $("value-text").textContent = (v >= 0 ? "+" : "") + v.toFixed(2);
   }
   document.querySelector(".ai-name").textContent =
-    mode === "watch" || mode === "arena" ? "Orange" : "The AI";
+    mode === "watch" || mode === "arena" ? "Orange" : "AI";
 
   const t = tally[mode];
   if (mode === "arena") {
@@ -372,35 +374,30 @@ function updatePanel() {
 // ---------- training stats ----------
 
 async function loadStats() {
-  let stats;
-  try {
-    stats = await (await fetch("stats.json")).json();
-  } catch {
-    document.querySelector(".explain h2:nth-of-type(2)").hidden = true;
-    return;
-  }
-  drawChart(stats.curve);
+  const get = async (url) => { try { return await (await fetch(url)).json(); } catch { return null; } };
+  const [duel, arena] = await Promise.all([get("stats.json?v=2"), get("stats_arena.json?v=2")]);
   const tiles = [];
-  const fe = stats.final_eval;
-  if (fe) {
-    tiles.push([`${Math.round(100 * fe.win_vs_flood_fill)}%`, "win rate vs flood-fill bot"]);
-    tiles.push([`${Math.round(100 * fe.win_vs_greedy)}%`, "win rate vs greedy bot"]);
+  if (duel?.final_eval) {
+    tiles.push([`${Math.round(100 * duel.final_eval.win_vs_flood_fill)}%`, "wins vs the best scripted bot"]);
+    tiles.push([`${Math.round(100 * duel.final_eval.win_vs_greedy)}%`, "wins vs a greedy bot"]);
   }
-  tiles.push([`${(stats.checkpoint.env_steps / 1e6).toFixed(0)}M`, "training turns"]);
-  tiles.push([`${(stats.checkpoint.parameters / 1e6).toFixed(1)}M`, "parameters"]);
+  if (arena?.final_eval) {
+    tiles.push([`${Math.round(100 * arena.final_eval.win_vs_flood_fill)}%`, "arena wins vs 5 bots (fair: 17%)"]);
+  }
   $("results").innerHTML = tiles.map(([b, s]) => `<div class="stat"><b>${b}</b><span>${s}</span></div>`).join("");
+  if (duel?.curve) drawChart(duel.curve);
 }
 
 function drawChart(points) {
   if (!points || !points.length) return;
-  const W = 720, H = 260, L = 44, R = 12, T = 12, B = 34;
+  const W = 720, H = 220, L = 40, R = 8, T = 10, B = 30;
   const maxX = points[points.length - 1].env_steps;
   const x = (v) => L + ((W - L - R) * v) / maxX;
   const y = (v) => T + (H - T - B) * (1 - v);
   const line = (key) => points.map((p, i) => `${i ? "L" : "M"}${x(p.env_steps).toFixed(1)},${y(p[key]).toFixed(1)}`).join("");
   let grid = "";
   for (const v of [0, 0.25, 0.5, 0.75, 1]) {
-    grid += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="#26304f"/>`;
+    grid += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/>`;
     grid += `<text x="${L - 8}" y="${y(v) + 4}" text-anchor="end">${v * 100}%</text>`;
   }
   const ticks = 5;
@@ -411,27 +408,43 @@ function drawChart(points) {
   $("chart").innerHTML = `
     <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Win rate over training">
       ${grid}
-      <path d="${line("win_vs_greedy")}" fill="none" stroke="#38bdf8" stroke-width="2.5"/>
-      <path d="${line("win_vs_flood_fill")}" fill="none" stroke="#f59e0b" stroke-width="2.5"/>
+      <path d="${line("win_vs_greedy")}" fill="none" stroke="var(--fg-faint)" stroke-width="2"/>
+      <path d="${line("win_vs_flood_fill")}" fill="none" stroke="var(--accent)" stroke-width="2"/>
     </svg>
-    <div class="legend"><span style="--c:#f59e0b">vs flood-fill bot</span>
-      <span style="--c:#38bdf8">vs greedy bot</span></div>`;
+    <div class="legend"><span>Duel win rate during training</span>
+      <span style="--c:var(--accent)">vs best scripted bot</span>
+      <span style="--c:var(--fg-faint)">vs greedy bot</span></div>`;
 }
 
 // ---------- wiring ----------
 
-document.querySelectorAll(".modes button").forEach((btn) => btn.addEventListener("click", async () => {
-  document.querySelectorAll(".modes button").forEach((b) => b.classList.toggle("active", b === btn));
+document.querySelectorAll(".tabs button").forEach((btn) => btn.addEventListener("click", async () => {
+  document.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("active", b === btn));
   mode = btn.dataset.mode;
   waitForReplay = false;
   $("arena-controls").hidden = mode !== "arena";
+  btn.blur();
   if (!(await loadModel(MODES[mode].model))) return;
   startGame();
   resizeCanvas();
 }));
-$("arena-snakes").addEventListener("input", () => {
-  $("arena-count").textContent = arenaSize();
+function setArenaSize(n) {
+  arenaN = Math.max(2, Math.min(8, n));
+  $("arena-count").textContent = `${arenaN} snakes`;
   if (mode === "arena") startGame();
+}
+$("fewer").addEventListener("click", () => setArenaSize(arenaN - 1));
+$("more").addEventListener("click", () => setArenaSize(arenaN + 1));
+$("speed").addEventListener("click", () => {
+  speedIdx = (speedIdx + 1) % SPEEDS.length;
+  const [label, delay] = SPEEDS[speedIdx];
+  tickDelay = delay;
+  $("speed").textContent = `Speed ${label}×`;
+});
+$("theme").addEventListener("click", () => {
+  const dark = document.documentElement.classList.toggle("dark");
+  try { localStorage.setItem("theme", dark ? "dark" : "light"); } catch {}
+  readTheme();
 });
 $("restart").addEventListener("click", () => { waitForReplay = false; startGame(); });
 $("pause").addEventListener("click", () => {
@@ -467,7 +480,6 @@ canvas.addEventListener("click", (e) => {
   if (Math.max(Math.abs(dx), Math.abs(dy)) < 0.5) return;
   onDirection(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 3 : 2) : (dy > 0 ? 1 : 0));
 });
-$("speed").addEventListener("input", () => { tickDelay = 440 - Number($("speed").value); });
 window.addEventListener("resize", resizeCanvas);
 
 // Networks load on first use, so the arena model doesn't slow down the first page load.
@@ -484,6 +496,7 @@ async function loadModel(name) {
 }
 
 async function init() {
+  readTheme();
   game = newGame(MODES[mode].board, 2);
   prev = structuredClone(game);
   resizeCanvas();
