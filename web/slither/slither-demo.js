@@ -36,7 +36,6 @@ const TEMPLATE = `
       <div class="sl-pills">
         <button type="button" data-sl="restart">Restart</button>
         <button type="button" data-sl="pause">Pause</button>
-        <button type="button" data-sl="sample">Sampling</button>
       </div>
       <p class="sl-meta" data-sl="hint"></p>
     </div>
@@ -79,7 +78,7 @@ export function mountSlitherDemo(root, options = {}) {
 
   let mode = options.mode ?? "watch";
   let session = null;
-  let started = false, paused = false, visible = true, busy = false, deterministic = false;
+  let started = false, paused = false, visible = true, busy = false;
   let theme = {}, dpr = 1, camera = null;
   let game, prevHeads, plan, follow;
   let acc = 0, last = performance.now(), frameNo = 0;
@@ -128,7 +127,7 @@ export function mountSlitherDemo(root, options = {}) {
     const logits = out.logits.data;
     ai.forEach((k, r) => {
       const probs = maskedSoftmax(Array.from(logits.subarray(r * 18, r * 18 + 18)), actionMask(game, k, cfg));
-      const action = deterministic ? argmax(probs) : sample(probs);
+      const action = sample(probs);
       plan[k] = decodeAction(action, cfg);
     });
   }
@@ -326,10 +325,6 @@ export function mountSlitherDemo(root, options = {}) {
     paused = !paused;
     $("pause").textContent = paused ? "Resume" : "Pause";
   });
-  $("sample").addEventListener("click", () => {
-    deterministic = !deterministic;
-    $("sample").textContent = deterministic ? "Greedy" : "Sampling";
-  });
 
   function readTheme() {
     const css = getComputedStyle(root);
@@ -375,8 +370,6 @@ function sample(probs) {
   }
   return probs.length - 1;
 }
-
-const argmax = (xs) => xs.reduce((best, x, i) => (x > xs[best] ? i : best), 0);
 
 function maskedSoftmax(logits, mask) {
   const allowed = mask.some(Boolean) ? mask : mask.map(() => true);

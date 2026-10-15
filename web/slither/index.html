@@ -8,8 +8,12 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="../style.css?v=13">
-  <link rel="stylesheet" href="slither-demo.css?v=1">
+  <link rel="stylesheet" href="../style.css?v=17">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
+    onload="renderMathInElement(document.querySelector('.how'), {delimiters: [{left: '$$', right: '$$', display: true}, {left: '\\(', right: '\\)', display: false}]})"></script>
+  <link rel="stylesheet" href="slither-demo.css?v=2">
   <script>
     // Light by default; dark only if the visitor chose it with the toggle.
     try {
@@ -32,29 +36,35 @@
 
   <main class="wrap">
     <h1 class="t-page">Slither, learned by playing itself<span class="accent">.</span></h1>
-    <p class="t-sub lede">Continuous steering, boosting, cutting each other off. Every snake but yours is a neural network trained only against copies of itself.</p>
+    <p class="t-sub lede">Neural networks trained only against copies of themselves, running live in your browser.</p>
 
     <section id="demo" aria-label="Live arena"></section>
 
-    <section class="block">
-      <h2 class="t-group">Results</h2>
-      <div id="results" class="stats"></div>
-    </section>
-
-    <section class="block">
+    <section class="how">
       <h2 class="t-group">How it works</h2>
-      <ul class="how t-desc">
-        <li><span class="t-title">Simulator.</span> Snakes are chains of points; 30 Hz physics in vectorised NumPy, checked against a reference and this page's JavaScript.</li>
-        <li><span class="t-title">Senses.</span> 32 rays' worth of sectors around the head: walls, bodies, heads, food.</li>
-        <li><span class="t-title">Training.</span> PPO self-play, rewarded for mass gained and penalised for dying.</li>
-      </ul>
+
+      <p><span class="t-title">The game.</span> Snakes steer continuously in a circular arena. Ten
+        times a second each one sees \(s_t\) (32 sectors around its head: walls, bodies, heads,
+        food, plus its own size) and picks \(a_t\), one of 9 steering angles, with or without
+        boost. The reward is \(r_t = 0.1\,\Delta m_t - \mathbb{1}[\text{died}]\): mass gained,
+        minus 1 for dying.</p>
+
+      <p><span class="t-title">The network.</span> A small MLP outputs a policy and a value:
+        $$\pi_\theta(a \mid s), \qquad V_\theta(s) \approx \mathbb{E}\Big[\textstyle\sum_k \gamma^k r_{t+k}\Big].$$</p>
+
+      <p><span class="t-title">Learning.</span> PPO nudges the policy toward moves that turned out
+        better than expected, but never too far in one update:
+        $$L(\theta) = \mathbb{E}_t\Big[\min\big(\rho_t \hat A_t,\ \operatorname{clip}(\rho_t, 1-\epsilon, 1+\epsilon)\, \hat A_t\big)\Big],
+        \qquad \rho_t = \frac{\pi_\theta(a_t \mid s_t)}{\pi_{\theta_\text{old}}(a_t \mid s_t)},$$
+        where the advantage \(\hat A_t = \sum_l (\gamma\lambda)^l \delta_{t+l}\), with
+        \(\delta_t = r_t + \gamma V(s_{t+1}) - V(s_t)\), says how much better a move was than the
+        network expected.</p>
+
+      <p><span class="t-title">Self-play.</span> Arenas hold 6 to 12 snakes, and each life is played
+        by the current network or a frozen past version of it.</p>
     </section>
   </main>
 
-  <footer class="wrap t-meta foot">
-    <a class="ink" href="https://github.com/LambdaAK/SnakeDQN">Source</a> · Alex Kozik
-  </footer>
-
-  <script type="module" src="page.js?v=1"></script>
+  <script type="module" src="page.js?v=2"></script>
 </body>
 </html>
