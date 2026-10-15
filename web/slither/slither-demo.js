@@ -33,8 +33,6 @@ const TEMPLATE = `
     </div>
     <div class="sl-side">
       <div><p class="sl-lbl">Leaderboard</p><ol class="sl-leaders" data-sl="leaders"></ol></div>
-      <div><p class="sl-lbl"><span data-sl="ai-name">AI</span> · confidence</p>
-        <p class="sl-meta" data-sl="value">–</p></div>
       <div class="sl-pills">
         <button type="button" data-sl="restart">Restart</button>
         <button type="button" data-sl="pause">Pause</button>
@@ -83,7 +81,7 @@ export function mountSlitherDemo(root, options = {}) {
   let session = null;
   let started = false, paused = false, visible = true, busy = false, deterministic = false;
   let theme = {}, dpr = 1, camera = null;
-  let game, prevHeads, plan, brain, follow;
+  let game, prevHeads, plan, follow;
   let acc = 0, last = performance.now(), frameNo = 0;
   let pointer = null, boostHeld = false;
   let gen = 0, failed = false;
@@ -93,10 +91,10 @@ export function mountSlitherDemo(root, options = {}) {
   const followed = () => (mode === "play" && game.snakes[HUMAN].alive ? HUMAN : follow);
   const name = (k) => (mode === "play" && k === HUMAN ? "You" : NAMES[k % NAMES.length]);
 
-  function biggest(skipHuman = false) {
+  function biggest() {
     let best = -1;
     game.snakes.forEach((s, k) => {
-      if (!s.alive || (skipHuman && mode === "play" && k === HUMAN)) return;
+      if (!s.alive) return;
       if (best < 0 || s.mass > game.snakes[best].mass) best = k;
     });
     return Math.max(best, 0);
@@ -108,7 +106,6 @@ export function mountSlitherDemo(root, options = {}) {
     game = newArena(SLOTS, SNAKES, cfg);
     prevHeads = heads();
     plan = Array.from({ length: SLOTS }, () => ({ turn: 0, boost: false }));
-    brain = Array(SLOTS).fill(null);
     follow = mode === "play" ? HUMAN : biggest();
     you = mode === "play" ? { kills: 0, ticks: 0 } : null;
     camera = null;
@@ -128,12 +125,11 @@ export function mountSlitherDemo(root, options = {}) {
     const g = gen;
     const out = await session.run({ obs: new globalThis.ort.Tensor("float32", data, [ai.length, D]) });
     if (g !== gen) return; // the game was restarted while the network was thinking
-    const logits = out.logits.data, value = out.value.data;
+    const logits = out.logits.data;
     ai.forEach((k, r) => {
       const probs = maskedSoftmax(Array.from(logits.subarray(r * 18, r * 18 + 18)), actionMask(game, k, cfg));
       const action = deterministic ? argmax(probs) : sample(probs);
       plan[k] = decodeAction(action, cfg);
-      brain[k] = { value: value[r] };
     });
   }
 
@@ -230,10 +226,6 @@ export function mountSlitherDemo(root, options = {}) {
     $("leaders").innerHTML = top.map(([k, s]) => `<li data-k="${k}" class="${k === followed() ? "sl-on" : ""}">`
       + `<span class="sl-dot" style="background:${COLORS[k % COLORS.length]}"></span><span>${name(k)}</span>`
       + `<span class="sl-mass">${Math.round(s.mass)}</span></li>`).join("");
-    const k = mode === "watch" ? follow : biggest(true);
-    const b = brain[k];
-    $("ai-name").textContent = NAMES[k % NAMES.length];
-    $("value").textContent = b ? b.value.toFixed(2) : "–";
   }
 
   // ---------- overlay ----------
