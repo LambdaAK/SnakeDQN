@@ -68,8 +68,8 @@ parameters).
 **3. In the browser.** The network is exported to ONNX and runs client-side with ONNX
 Runtime Web (`web/`). The rules are ported to JavaScript and checked against thousands of
 Python-generated game steps (`tests/test_js_parity.py`), so the demo is exactly the game
-the network trained on. The side panel shows the network's move probabilities and value
-estimate live.
+the network trained on. The side panel shows each snake's length and the network's value
+estimate (its confidence) live.
 
 ## Run it yourself
 

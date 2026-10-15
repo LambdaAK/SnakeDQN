@@ -14,7 +14,6 @@ const ORT_CDN = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dis
 
 const COLORS = ["#f59e0b", "#38bdf8", "#a78bfa", "#34d399", "#f472b6", "#facc15", "#fb7185", "#22d3ee"];
 const COLOR_NAMES = ["Orange", "Blue", "Violet", "Green", "Pink", "Yellow", "Coral", "Cyan"];
-const ARROWS = ["↑", "↓", "←", "→"];
 const KEYS = { ArrowUp: 0, KeyW: 0, ArrowDown: 1, KeyS: 1, ArrowLeft: 2, KeyA: 2, ArrowRight: 3, KeyD: 3 };
 const OPPOSITE = [1, 0, 3, 2];
 const SPEEDS = [[1, 180], [2, 100], [0.5, 320]]; // [label multiplier, ms per move]
@@ -42,8 +41,7 @@ const TEMPLATE = `
     </div>
     <div class="sd-side">
       <div><p class="sd-lbl">Snakes</p><ul class="sd-snakes" data-sd="snakes"></ul></div>
-      <div><p class="sd-lbl"><span data-sd="ai-name">Orange</span> · next move</p><ul class="sd-probs" data-sd="probs"></ul></div>
-      <div><p class="sd-lbl">Confidence</p>
+      <div><p class="sd-lbl"><span data-sd="ai-name">Orange</span> · confidence</p>
         <div class="sd-value"><div class="sd-meter"><div data-sd="value-bar"></div></div><span data-sd="value-text">–</span></div></div>
       <div class="sd-pills">
         <button type="button" data-sd="restart">Restart</button>
@@ -359,13 +357,6 @@ export function mountSnakeDemo(root, options = {}) {
       const s = game.snakes[i];
       return `<li class="${s.alive ? "" : "sd-dead"}"><span class="sd-dot" style="background:${COLORS[i % COLORS.length]}"></span>
         <span>${label[i]}</span><span class="sd-len">${s.body.length}</span></li>`;
-    }).join("");
-
-    $("probs").innerHTML = ARROWS.map((arrow, a) => {
-      const p = brain.probs ? brain.probs[a] : 0;
-      return `<li class="${a === brain.chosen ? "sd-chosen" : ""}">
-        <span>${arrow}</span><div class="sd-track"><div style="width:${(100 * p).toFixed(1)}%"></div></div>
-        <span class="sd-pct">${brain.probs ? Math.round(100 * p) + "%" : "–"}</span></li>`;
     }).join("");
 
     const bar = $("value-bar");
