@@ -435,6 +435,7 @@ function sample(probs) {
     u -= probs[a];
     if (u <= 0) return a;
   }
+  for (let a = probs.length - 1; a >= 0; a--) if (probs[a] > 0) return a;
   return probs.length - 1;
 }
 

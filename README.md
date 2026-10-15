@@ -61,6 +61,8 @@ of game time each. An equal snake would hold 12.5% of all the snake mass.
 | Forager bots (steer to the most food, avoid danger) | **35.9%** (35.1–36.8) | 10.5 (9.5–11.7) |
 | Wander bots (random, avoid danger) | **55.8%** (54.9–56.7) | 7.8 (6.7–9.1) |
 
+The share is measured over 5 minutes of game time per arena; the network rarely dies, so it keeps growing and its share rises with time (about 19% over the first minute, as in the training-time evaluation).
+
 How it differs from the grid game:
 
 - **Physics:** each snake is a chain of points 1 unit apart. The head moves 1 unit per
