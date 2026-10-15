@@ -81,7 +81,7 @@ tests/
   test_slither_bots.py
   test_slither_js_parity.py
 web/slither/
-  index.html  style.css  app.js  rules.js  observe.js  render.js
+  index.html  page.js  slither-demo.js  slither-demo.css  rules.js  observe.js  render.js
   model.onnx  stats.json
   test/parity.mjs
 ```
@@ -124,11 +124,15 @@ cruise step), with index 0 at the head.
 
 1. **Steer.** `heading += clip(turn, −max_turn, +max_turn)`. Here `turn` is a float, so
    the agent's bins and a human's mouse share one code path.
-2. **Move.** Push 1 new head point, or 2 if boosting, 1 unit apart along `heading`.
+2. **Move and trim.** Push 1 new head point, or 2 if boosting, 1 unit apart along
+   `heading`.
    - Boosting means boost was requested and `mass ≥ boost_min_mass`.
    - A boosting snake pays `boost_cost` mass.
+   - Then the body is trimmed: `length = min(length + points pushed, length(mass))`.
+     A growing body therefore gains at most the points pushed this tick, because the
+     tail stays put; a shrinking body has its tail cut.
    - Every `boost_drop_every` ticks of continuous boosting it drops a pellet at its
-     tail point.
+     (trimmed) tail point.
 3. **Deaths**, all decided on positions after the move:
    - **Wall:** `|head| + radius > arena_radius`.
    - **Head-on:** `dist(head_i, head_j) < r_i + r_j`. Both die.
@@ -138,23 +142,25 @@ cruise step), with index 0 at the head.
    - All deaths in a tick are simultaneous: a snake that dies this tick still kills
      others with its body this tick.
 4. **Eat** (surviving snakes only). Each pellet within reach goes to the nearest eligible
-   head, with ties going to the lower slot. Mass increases by the pellet value, capped
-   at `max_mass`.
+   head, with ties going to the lower slot. Each snake's eaten values are summed in
+   pellet-slot order, then `mass = min(mass + eaten, max_mass)`.
 5. **Death drops.**
-   - `n = min(ceil(mass/2), 64)` pellets of value `0.8·mass/n` are placed at evenly
-     spaced body points, plus jitter.
-   - Pellets go into free food slots. When the slots are full, the excess is discarded.
-   - The snake's slot goes to the dead state, with a respawn timer of `respawn_delay`.
-6. **Trim.** `length = length(mass)`. Each tick a body grows by at most the number of
-   points pushed, because the tail is not dropped while it is shorter than the target.
-   When a body shrinks, the tail is cut.
-7. **Respawn.** For each slot whose timer reaches 0:
+   - `n = min(ceil(mass/2), 64)` pellets of value `0.8·mass/n` are placed at body points
+     `floor(q·length/n)`, plus jitter of ±2 units.
+   - The snake's slot goes to the dead state (empty body, mass kept until respawn), with
+     a respawn timer of `respawn_delay`.
+6. **Respawn.** Slots that were dead at the start of the tick count down; for each slot,
+   in slot order, whose timer reaches 0:
    - Use the first of the 16 candidate points whose distance to every live head is at
      least `respawn_clearance`. If none qualifies, take the candidate with the largest
      minimum distance.
    - The heading is random, and the body is laid out straight behind the head at
      `start_mass`.
-8. **Natural food.** If natural pellets < target, spawn up to 2, uniformly in the disc.
+7. **Pellets.** If natural pellets < target, spawn up to 2, uniformly in the disc of
+   radius `R − 10`. Then all of this tick's new pellets are placed into free food slots
+   in ascending slot order, in the order boost drops, death drops, natural pellets
+   (each in slot order). When the slots run out, the excess is discarded. New pellets
+   can't be eaten before the next tick.
 
 **Determinism.** All randomness enters through a per-tick uniform array
 `u: (num_envs, U)` with a documented fixed layout (respawn candidates and headings,
@@ -194,7 +200,7 @@ sector are:
    sector's centre ray;
 2. **enemy body:** the nearest point of any other live snake, measured to its surface
    (`d − r_j`);
-3. **that enemy's radius**, `/ 15`;
+3. **enemy size:** the largest radius among enemy points seen in the sector, `/ 15`;
 4. **own body:** points from index 10 onward, skipping the neck;
 5. **food:** total pellet value in the sector within `V`, `/ 10`, clipped at 1;
 6. **enemy head:** the nearest other head;
@@ -337,10 +343,12 @@ The grid engine's standard applies.
     observations within 1e-6.
   - Both sides use float64 with the same operation order. JS numbers are float64, and
     the Python side does not use `np.float32` anywhere in the rules.
-  - So that a last-bit (one-ulp) difference between NumPy's and V8's `sin`/`cos`/`atan2`
-    cannot flip a discrete outcome, generated cases are skipped when a collision
-    distance is within 1e-6 of its threshold, or a point's angle is within 1e-9 of a
-    sector boundary.
+  - A last-bit (one-ulp) difference between NumPy's and V8's `sin`/`cos`/`atan2` could
+    in principle flip a discrete outcome, but only for a distance within about 1e-15 of
+    a threshold or an angle within about 1e-15 of a sector boundary. Across the whole
+    fixture set that has a probability of roughly 1e-7, and fixtures use fixed seeds, so
+    the test is deterministic. Cases are therefore not filtered; a failure is
+    investigated, not retried.
   - The test is skipped when Node is unavailable, like the existing parity test.
 - **Existing suite:** must stay green. No existing test is modified.
 - **Throughput target:** `scripts/benchmark_slither.py` must report **≥ 20,000 snake
@@ -350,10 +358,21 @@ The grid engine's standard applies.
 
 ## 6. Browser (`web/slither/`)
 
-**Page.** A standalone page styled to match the existing demo: the same fonts, palette,
-light-mode default and theme toggle. The existing `web/index.html` gets a single
-"Slither →" link in its header. The new page links back. Nothing else in the existing
-`web/` changes. The current Pages workflow already deploys all of `web/`.
+**Component and page.** The grid demo is now an embeddable component
+(`web/snake-demo.js`: `mountSnakeDemo(root, {base, autoLoad, ortCdn})`, styles scoped to
+`.snake-demo` and read from the host page's `--color-*` tokens). Slither follows the same
+pattern so it can be embedded on alexkozik.com too:
+
+- `web/slither/slither-demo.js` exports `mountSlitherDemo(root, {base, autoLoad, ortCdn})`.
+  It loads ONNX Runtime on demand, can wait for a click before downloading the network,
+  follows the host's `.dark` class and pauses while scrolled off-screen.
+- `web/slither/slither-demo.css` is scoped to `.slither-demo`.
+- `web/slither/index.html` and `page.js` are a thin standalone shell that reuses
+  `../style.css` for the page chrome (fonts, palette, light-mode default, theme toggle).
+
+The existing `web/index.html` gets a single "Slither →" link in its header. The new page
+links back. Nothing else in the existing `web/` changes. The current Pages workflow
+already deploys all of `web/`.
 
 **Modules:**
 
@@ -371,7 +390,7 @@ light-mode default and theme toggle. The existing `web/index.html` gets a single
   - boosting snakes get a brighter outline;
   - head positions interpolated between physics ticks by the accumulator fraction, for
     smooth 60 fps motion.
-- `app.js`: the main loop and UI, described below.
+- `slither-demo.js`: the component, with the main loop and UI described below.
 
 **Loop.** A fixed-timestep accumulator steps physics at 30 Hz. Every 3 ticks, all AI
 snakes run through one batched `InferenceSession.run` on an `obs (k, 263)` tensor.
@@ -389,7 +408,8 @@ Sampling uses the softmax with temperature 1 by default, with a "deterministic" 
 - **Panel:** the leaderboard (top 5 by mass) and a minimap. For the followed AI snake,
   its 9-bin steering distribution is drawn as a fan, alongside its boost probability and
   value estimate. This mirrors the grid demo's probability panel.
-- **Embed:** `?embed=1` gives a compact canvas plus panel view, as on the main page.
+- **Touch:** a touch sets the target heading. On touch devices a Boost button appears.
+- **Embed:** `?embed=1` on the standalone page hides the page chrome, as on the main page.
 
 ## 7. Out of scope (possible follow-ups)
 
