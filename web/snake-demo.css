@@ -68,11 +68,6 @@
 .snake-demo .sd-snakes li.sd-dead { opacity: .4; }
 .snake-demo .sd-dot { width: 8px; height: 8px; border-radius: 999px; }
 .snake-demo .sd-len { font-family: var(--sd-mono); font-size: 12px; color: var(--sd-muted); }
-.snake-demo .sd-meter { height: 6px; border-radius: 999px; background: var(--sd-line); overflow: hidden; position: relative; }
-.snake-demo .sd-value { display: grid; grid-template-columns: 1fr 38px; gap: 8px; align-items: center; }
-.snake-demo .sd-meter::after { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--sd-faint); }
-.snake-demo [data-sd="value-bar"] { position: absolute; top: 0; bottom: 0; background: var(--sd-accent); border-radius: 999px; }
-.snake-demo [data-sd="value-text"] { font-family: var(--sd-mono); font-size: 12px; text-align: right; color: var(--sd-muted); }
 .snake-demo .sd-pills { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .snake-demo .sd-stepper span { font-size: 12px; color: var(--sd-muted); min-width: 62px; text-align: center; }
 .snake-demo .sd-stepper button { width: 26px; padding: 4px 0; }

@@ -41,8 +41,6 @@ const TEMPLATE = `
     </div>
     <div class="sd-side">
       <div><p class="sd-lbl">Snakes</p><ul class="sd-snakes" data-sd="snakes"></ul></div>
-      <div><p class="sd-lbl"><span data-sd="ai-name">Orange</span> · confidence</p>
-        <div class="sd-value"><div class="sd-meter"><div data-sd="value-bar"></div></div><span data-sd="value-text">–</span></div></div>
       <div class="sd-pills">
         <button type="button" data-sd="restart">Restart</button>
         <button type="button" data-sd="pause">Pause</button>
@@ -112,7 +110,6 @@ export function mountSnakeDemo(root, options = {}) {
   let waitingForHuman = false;
   let waitForReplay = false;
   let humanQueue = [];
-  let brain = { probs: null, value: null, chosen: -1 };
   let aiPlan = null; // AI moves for the current state, decided while the last move animates
   let planToken = 0;
   const tally = { watch: [0, 0, 0], play: [0, 0, 0], bot: [0, 0, 0], arena: Array(9).fill(0) };
@@ -138,7 +135,6 @@ export function mountSnakeDemo(root, options = {}) {
     const n = controllers().length;
     game = newGame(MODES[mode].board, n, Math.random, 100, mode === "arena" ? n : 1);
     prev = structuredClone(game);
-    brain = { probs: null, value: null, chosen: -1 };
     humanQueue = [];
     waitingForHuman = controllers().includes("human");
     $("dpad").hidden = mode !== "play";
@@ -158,7 +154,6 @@ export function mountSnakeDemo(root, options = {}) {
   }
 
   async function decideAI(state) {
-    let decided = null;
     const actions = Array(state.snakes.length).fill(0);
     const net = session();
     const { window } = MODELS[MODES[mode].model];
@@ -174,17 +169,15 @@ export function mountSnakeDemo(root, options = {}) {
         // Copies of one deterministic network mirror each other from symmetric starts, so
         // all-AI modes sample from the policy (as in training); other modes play greedily.
         actions[i] = mode === "watch" || mode === "arena" ? sample(probs) : probs.indexOf(Math.max(...probs));
-        if (i === 0) decided = { probs, value: out.value.data[j], chosen: actions[i] };
       });
     }
-    return { actions, brain: decided };
+    return { actions };
   }
 
   function advance(now) {
     if (!session() || paused || !visible || waitingForHuman || game.over || !aiPlan) return;
     if (now - lastTick < tickDelay) return;
     const actions = aiPlan.actions.slice();
-    if (aiPlan.brain) brain = aiPlan.brain;
     controllers().forEach((c, i) => {
       if (!game.snakes[i].alive) return;
       if (c === "greedy") actions[i] = greedyAction(game, i);
@@ -358,18 +351,6 @@ export function mountSnakeDemo(root, options = {}) {
       return `<li class="${s.alive ? "" : "sd-dead"}"><span class="sd-dot" style="background:${COLORS[i % COLORS.length]}"></span>
         <span>${label[i]}</span><span class="sd-len">${s.body.length}</span></li>`;
     }).join("");
-
-    const bar = $("value-bar");
-    if (brain.value === null) {
-      bar.style.width = "0";
-      $("value-text").textContent = "–";
-    } else {
-      const v = Math.max(-1, Math.min(1, brain.value));
-      bar.style.left = v >= 0 ? "50%" : `${50 + 50 * v}%`;
-      bar.style.width = `${50 * Math.abs(v)}%`;
-      $("value-text").textContent = (v >= 0 ? "+" : "") + v.toFixed(2);
-    }
-    $("ai-name").textContent = mode === "watch" || mode === "arena" ? "Orange" : "AI";
 
     const t = tally[mode];
     $("tally").textContent = mode === "arena"

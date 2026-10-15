@@ -1,5 +1,5 @@
 // The standalone demo page: theme toggle, the game component, and training results.
-import { mountSnakeDemo } from "./snake-demo.js?v=14";
+import { mountSnakeDemo } from "./snake-demo.js?v=15";
 
 const $ = (id) => document.getElementById(id);
 
