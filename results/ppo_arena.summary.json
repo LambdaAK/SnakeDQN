@@ -1,0 +1,25 @@
+{
+  "games": 300,
+  "seed": 12345,
+  "board": 19,
+  "num_snakes": 6,
+  "min_food": 6,
+  "win_vs_flood_fill": 0.44666666666666666,
+  "draw_vs_flood_fill": 0.006666666666666667,
+  "ci_vs_flood_fill": [
+    0.39143616500447354,
+    0.5032458008619516
+  ],
+  "win_vs_greedy": 0.88,
+  "draw_vs_greedy": 0.006666666666666667,
+  "ci_vs_greedy": [
+    0.8383413318338598,
+    0.9120496613678611
+  ],
+  "win_vs_safe_random": 0.9866666666666667,
+  "draw_vs_safe_random": 0.0,
+  "ci_vs_safe_random": [
+    0.9662239391535502,
+    0.9948031223153205
+  ]
+}

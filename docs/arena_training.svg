@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 290" font-family="system-ui, sans-serif" font-size="12">
+<rect width="720" height="290" rx="12" fill="#131a2e"/>
+<text x="48" y="22" fill="#e6e9f2" font-size="14" font-weight="600">Win rate during self-play training</text>
+<line x1="48" x2="704" y1="238.0" y2="238.0" stroke="#26304f"/>
+<text x="40" y="242.0" fill="#8d97b5" text-anchor="end">0%</text>
+<line x1="48" x2="704" y1="187.5" y2="187.5" stroke="#26304f"/>
+<text x="40" y="191.5" fill="#8d97b5" text-anchor="end">25%</text>
+<line x1="48" x2="704" y1="137.0" y2="137.0" stroke="#26304f"/>
+<text x="40" y="141.0" fill="#8d97b5" text-anchor="end">50%</text>
+<line x1="48" x2="704" y1="86.5" y2="86.5" stroke="#26304f"/>
+<text x="40" y="90.5" fill="#8d97b5" text-anchor="end">75%</text>
+<line x1="48" x2="704" y1="36.0" y2="36.0" stroke="#26304f"/>
+<text x="40" y="40.0" fill="#8d97b5" text-anchor="end">100%</text>
+<text x="48.0" y="260" fill="#8d97b5" text-anchor="middle">0M</text>
+<text x="179.2" y="260" fill="#8d97b5" text-anchor="middle">3M</text>
+<text x="310.4" y="260" fill="#8d97b5" text-anchor="middle">6M</text>
+<text x="441.6" y="260" fill="#8d97b5" text-anchor="middle">10M</text>
+<text x="572.8" y="260" fill="#8d97b5" text-anchor="middle">13M</text>
+<text x="704.0" y="260" fill="#8d97b5" text-anchor="middle">16M</text>
+<path d="M68.3,221.2L88.5,224.5L108.8,204.3L129.1,194.2L149.3,194.2L169.6,187.5L189.9,170.7L210.1,150.5L230.4,174.0L250.7,177.4L270.9,157.2L291.2,140.4L311.5,153.8L331.7,170.7L352.0,163.9L372.3,163.9L392.6,184.1L412.8,126.9L433.1,163.9L453.4,147.1L473.6,150.5L493.9,130.3L514.2,140.4L534.4,147.1L554.7,147.1L575.0,140.4L595.2,147.1L615.5,157.2L635.8,143.7L656.0,140.4L676.3,147.1L696.6,130.3L704.0,147.1" fill="none" stroke="#f59e0b" stroke-width="2.5"/>
+<path d="M68.3,83.1L88.5,100.0L108.8,73.0L129.1,86.5L149.3,66.3L169.6,62.9L189.9,62.9L210.1,52.8L230.4,79.8L250.7,69.7L270.9,56.2L291.2,66.3L311.5,66.3L331.7,66.3L352.0,62.9L372.3,69.7L392.6,96.6L412.8,62.9L433.1,59.6L453.4,59.6L473.6,66.3L493.9,73.0L514.2,73.0L534.4,59.6L554.7,62.9L575.0,56.2L595.2,83.1L615.5,73.0L635.8,56.2L656.0,66.3L676.3,76.4L696.6,56.2L704.0,59.6" fill="none" stroke="#38bdf8" stroke-width="2.5"/>
+<rect x="470" y="13" width="10" height="10" rx="2" fill="#f59e0b"/><text x="485" y="22" fill="#8d97b5">vs flood-fill bot</text><rect x="595" y="13" width="10" height="10" rx="2" fill="#38bdf8"/><text x="610" y="22" fill="#8d97b5">vs greedy bot</text>
+<text x="376" y="280" fill="#8d97b5" text-anchor="middle">self-play turns</text>
+</svg>

@@ -1,0 +1,232 @@
+{
+  "checkpoint": {
+    "iteration": 971,
+    "env_steps": 15908864,
+    "parameters": 2426597
+  },
+  "curve": [
+    {
+      "env_steps": 491520,
+      "hours": 0.0858,
+      "win_vs_flood_fill": 0.0833,
+      "win_vs_greedy": 0.7667
+    },
+    {
+      "env_steps": 983040,
+      "hours": 0.1715,
+      "win_vs_flood_fill": 0.0667,
+      "win_vs_greedy": 0.6833
+    },
+    {
+      "env_steps": 1474560,
+      "hours": 0.2546,
+      "win_vs_flood_fill": 0.1667,
+      "win_vs_greedy": 0.8167
+    },
+    {
+      "env_steps": 1966080,
+      "hours": 0.3351,
+      "win_vs_flood_fill": 0.2167,
+      "win_vs_greedy": 0.75
+    },
+    {
+      "env_steps": 2457600,
+      "hours": 0.4136,
+      "win_vs_flood_fill": 0.2167,
+      "win_vs_greedy": 0.85
+    },
+    {
+      "env_steps": 2949120,
+      "hours": 0.4886,
+      "win_vs_flood_fill": 0.25,
+      "win_vs_greedy": 0.8667
+    },
+    {
+      "env_steps": 3440640,
+      "hours": 0.5649,
+      "win_vs_flood_fill": 0.3333,
+      "win_vs_greedy": 0.8667
+    },
+    {
+      "env_steps": 3932160,
+      "hours": 0.6405,
+      "win_vs_flood_fill": 0.4333,
+      "win_vs_greedy": 0.9167
+    },
+    {
+      "env_steps": 4423680,
+      "hours": 0.7171,
+      "win_vs_flood_fill": 0.3167,
+      "win_vs_greedy": 0.7833
+    },
+    {
+      "env_steps": 4915200,
+      "hours": 0.7924,
+      "win_vs_flood_fill": 0.3,
+      "win_vs_greedy": 0.8333
+    },
+    {
+      "env_steps": 5406720,
+      "hours": 0.8668,
+      "win_vs_flood_fill": 0.4,
+      "win_vs_greedy": 0.9
+    },
+    {
+      "env_steps": 5898240,
+      "hours": 0.9411,
+      "win_vs_flood_fill": 0.4833,
+      "win_vs_greedy": 0.85
+    },
+    {
+      "env_steps": 6389760,
+      "hours": 1.0159,
+      "win_vs_flood_fill": 0.4167,
+      "win_vs_greedy": 0.85
+    },
+    {
+      "env_steps": 6881280,
+      "hours": 1.0904,
+      "win_vs_flood_fill": 0.3333,
+      "win_vs_greedy": 0.85
+    },
+    {
+      "env_steps": 7372800,
+      "hours": 1.1658,
+      "win_vs_flood_fill": 0.3667,
+      "win_vs_greedy": 0.8667
+    },
+    {
+      "env_steps": 7864320,
+      "hours": 1.2419,
+      "win_vs_flood_fill": 0.3667,
+      "win_vs_greedy": 0.8333
+    },
+    {
+      "env_steps": 8355840,
+      "hours": 1.3175,
+      "win_vs_flood_fill": 0.2667,
+      "win_vs_greedy": 0.7
+    },
+    {
+      "env_steps": 8847360,
+      "hours": 1.3936,
+      "win_vs_flood_fill": 0.55,
+      "win_vs_greedy": 0.8667
+    },
+    {
+      "env_steps": 9338880,
+      "hours": 1.4711,
+      "win_vs_flood_fill": 0.3667,
+      "win_vs_greedy": 0.8833
+    },
+    {
+      "env_steps": 9830400,
+      "hours": 1.5473,
+      "win_vs_flood_fill": 0.45,
+      "win_vs_greedy": 0.8833
+    },
+    {
+      "env_steps": 10321920,
+      "hours": 1.6255,
+      "win_vs_flood_fill": 0.4333,
+      "win_vs_greedy": 0.85
+    },
+    {
+      "env_steps": 10813440,
+      "hours": 1.7023,
+      "win_vs_flood_fill": 0.5333,
+      "win_vs_greedy": 0.8167
+    },
+    {
+      "env_steps": 11304960,
+      "hours": 1.7787,
+      "win_vs_flood_fill": 0.4833,
+      "win_vs_greedy": 0.8167
+    },
+    {
+      "env_steps": 11796480,
+      "hours": 1.8564,
+      "win_vs_flood_fill": 0.45,
+      "win_vs_greedy": 0.8833
+    },
+    {
+      "env_steps": 12288000,
+      "hours": 1.934,
+      "win_vs_flood_fill": 0.45,
+      "win_vs_greedy": 0.8667
+    },
+    {
+      "env_steps": 12779520,
+      "hours": 2.0119,
+      "win_vs_flood_fill": 0.4833,
+      "win_vs_greedy": 0.9
+    },
+    {
+      "env_steps": 13271040,
+      "hours": 2.0888,
+      "win_vs_flood_fill": 0.45,
+      "win_vs_greedy": 0.7667
+    },
+    {
+      "env_steps": 13762560,
+      "hours": 2.1663,
+      "win_vs_flood_fill": 0.4,
+      "win_vs_greedy": 0.8167
+    },
+    {
+      "env_steps": 14254080,
+      "hours": 2.2461,
+      "win_vs_flood_fill": 0.4667,
+      "win_vs_greedy": 0.9
+    },
+    {
+      "env_steps": 14745600,
+      "hours": 2.3225,
+      "win_vs_flood_fill": 0.4833,
+      "win_vs_greedy": 0.85
+    },
+    {
+      "env_steps": 15237120,
+      "hours": 2.3967,
+      "win_vs_flood_fill": 0.45,
+      "win_vs_greedy": 0.8
+    },
+    {
+      "env_steps": 15728640,
+      "hours": 2.4708,
+      "win_vs_flood_fill": 0.5333,
+      "win_vs_greedy": 0.9
+    },
+    {
+      "env_steps": 15908864,
+      "hours": 2.5017,
+      "win_vs_flood_fill": 0.45,
+      "win_vs_greedy": 0.8833
+    }
+  ],
+  "final_eval": {
+    "games": 300,
+    "seed": 12345,
+    "board": 19,
+    "num_snakes": 6,
+    "min_food": 6,
+    "win_vs_flood_fill": 0.44666666666666666,
+    "draw_vs_flood_fill": 0.006666666666666667,
+    "ci_vs_flood_fill": [
+      0.39143616500447354,
+      0.5032458008619516
+    ],
+    "win_vs_greedy": 0.88,
+    "draw_vs_greedy": 0.006666666666666667,
+    "ci_vs_greedy": [
+      0.8383413318338598,
+      0.9120496613678611
+    ],
+    "win_vs_safe_random": 0.9866666666666667,
+    "draw_vs_safe_random": 0.0,
+    "ci_vs_safe_random": [
+      0.9662239391535502,
+      0.9948031223153205
+    ]
+  }
+}

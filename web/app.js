@@ -1,10 +1,10 @@
-import { actionMask, DIRECTIONS, greedyAction, newGame, NUM_CHANNELS, observation, step, windowObservation } from "./rules.js?v=8";
+import { actionMask, DIRECTIONS, greedyAction, newGame, NUM_CHANNELS, observation, step, windowObservation } from "./rules.js?v=9";
 
 const COLORS = ["#f59e0b", "#38bdf8", "#a78bfa", "#34d399", "#f472b6", "#facc15", "#fb7185", "#22d3ee"];
 const COLOR_NAMES = ["Orange", "Blue", "Violet", "Green", "Pink", "Yellow", "Coral", "Cyan"];
 // Two networks: the 1v1 duel network sees the whole 11x11 board; the arena network sees a
 // 17x17 window around its own head, so it plays on a large board with many snakes.
-const MODELS = { duel: { url: "model.onnx", window: 0 }, arena: { url: "model_arena.onnx", window: 17 } };
+const MODELS = { duel: { url: "model.onnx?v=2", window: 0 }, arena: { url: "model_arena.onnx?v=2", window: 17 } };
 const sessions = {};
 const ARROWS = ["↑", "↓", "←", "→"];
 const MODES = {

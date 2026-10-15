@@ -1,8 +1,9 @@
 # Snake, learned by playing itself
 
-A neural network that learned two-player [Battlesnake](https://play.battlesnake.com) purely
-through **self-play reinforcement learning**. It never saw a human game. It runs live in
-the browser, where you can watch it play itself or try to beat it.
+Neural networks that learned [Battlesnake](https://play.battlesnake.com) purely through
+**self-play reinforcement learning**, both head-to-head and in a free-for-all arena of up to
+8 snakes. They never saw a human game, and they run live in the browser: watch them play,
+or try to beat one.
 
 **[▶ Play the live demo](https://lambdaak.github.io/SnakeDQN/)**
 
@@ -25,6 +26,23 @@ stronger than both hand-written strategies after about 34M self-play turns, whic
 2.5 hours on a laptop (Apple M3 Max).
 
 ![Win rate over training](docs/training.svg)
+
+### Arena: 6 snakes on a 19×19 board
+
+A second network plays free-for-all games. It reads a 17×17 window around its own head,
+plus a wall channel, so it isn't tied to one board size or snake count. It was trained
+with 6 snakes and extra food, for about 16M turns over 2.5 hours. In each test game it is
+one snake against 5 copies of a scripted bot, so an even contest would win 16.7% of the time.
+
+| Opponents (×5) | Win | 95% CI |
+|---|---|---|
+| Flood-fill bots | **44.7%** | 39.1–50.3 |
+| Greedy bots | **88.0%** | 83.8–91.2 |
+| Safe-random bots | **98.7%** | 96.6–99.5 |
+
+300 games each.
+
+![Arena win rate over training](docs/arena_training.svg)
 
 ## How it works
 
@@ -65,6 +83,10 @@ uv run --group train python scripts/train_selfplay.py --device mps --hours 2.5
 uv run --group train python scripts/final_eval.py runs/selfplay/best.pt --games 1000
 uv run --group train python scripts/build_web_assets.py --run-dir runs/selfplay \
     --final-eval results/ppo_selfplay.summary.json             # -> web/model.onnx, web/stats.json
+
+# arena network (any board size / snake count)
+uv run --group train python scripts/train_selfplay.py --run-dir runs/arena --board 19 \
+    --num-snakes 6 --window 17 --min-food 6 --hidden 128 --num-envs 256 --device mps --hours 2.5
 python3 -m http.server --directory web 8000                     # demo at localhost:8000
 ```
 
