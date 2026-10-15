@@ -409,8 +409,8 @@ Sampling uses the softmax with temperature 1 by default, with a "deterministic" 
   - Holding the mouse button or Space boosts.
   - On death, an overlay shows final mass, kills and time alive, with "Play again".
 - **Panel:** the leaderboard (top 5 by mass) and a minimap. For the followed AI snake,
-  its 9-bin steering distribution is drawn as a fan, alongside its boost probability and
-  value estimate. This mirrors the grid demo's probability panel.
+  its value estimate is shown as a confidence readout, like the grid demo's confidence
+  meter. No next-move or steering probabilities are displayed (user decision, 2026-10-15).
 - **Touch:** a touch sets the target heading. On touch devices a Boost button appears.
 - **Embed:** `?embed=1` on the standalone page hides the page chrome, as on the main page.
 
