@@ -44,6 +44,8 @@ def parse_args(argv=None):
     p.add_argument("--minibatch", type=int, default=8192)
     p.add_argument("--ent-coef", type=float, default=0.01)
     p.add_argument("--vf-coef", type=float, default=0.5)
+    p.add_argument("--mass-scale", type=float, default=0.1)
+    p.add_argument("--death-penalty", type=float, default=1.0)
     p.add_argument("--survival-bonus", type=float, default=0.0)
     p.add_argument("--pool-prob", type=float, default=0.3)
     p.add_argument("--pool-size", type=int, default=20)
@@ -87,7 +89,8 @@ def main(argv=None):
 
     n, s, t_len = args.num_envs, args.max_snakes, args.rollout
     env = SlitherEnv(n, max_snakes=s, min_snakes=args.min_snakes, seed=args.seed,
-                     survival_bonus=args.survival_bonus)
+                     survival_bonus=args.survival_bonus, mass_scale=args.mass_scale,
+                     death_penalty=args.death_penalty)
     d = env.obs_size
     model = SlitherNet(d, args.hidden).to(device)
     opponent = SlitherNet(d, args.hidden).to(device).eval()
