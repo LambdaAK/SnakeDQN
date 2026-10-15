@@ -1,5 +1,5 @@
 // The standalone Slither page: theme toggle and the arena component.
-import { mountSlitherDemo } from "./slither-demo.js?v=2";
+import { mountSlitherDemo } from "./slither-demo.js?v=3";
 
 const $ = (id) => document.getElementById(id);
 

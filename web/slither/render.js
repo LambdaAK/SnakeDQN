@@ -1,6 +1,6 @@
 // Canvas rendering of a slither arena. A camera follows one snake; snakes are round-capped
-// strokes through their trail points (tapering at the tail), with the head interpolated
-// between physics ticks so motion stays smooth at 60 fps on a 30 Hz simulation.
+// strokes through their trail points (tapering at the tail). The caller interpolates head and
+// tail between physics ticks so motion stays smooth at 60 fps on a 30 Hz simulation.
 import { bodyRadius } from "./rules.js";
 
 export const COLORS = ["#f59e0b", "#38bdf8", "#a78bfa", "#34d399", "#f472b6", "#facc15",
@@ -8,16 +8,11 @@ export const COLORS = ["#f59e0b", "#38bdf8", "#a78bfa", "#34d399", "#f472b6", "#
 export const NAMES = ["Orange", "Blue", "Violet", "Green", "Pink", "Yellow", "Coral", "Cyan",
   "Amber", "Lime", "Purple", "Sky"];
 
-/** Head of snake k at fraction `alpha` of the way from the previous tick to the current one. */
-export function headAt(game, prevHeads, k, alpha) {
-  const h = game.snakes[k].body[0], p = prevHeads[k];
-  if (!p) return h;
-  return [p[0] + (h[0] - p[0]) * alpha, p[1] + (h[1] - p[1]) * alpha];
-}
-
 /**
  * Draw the arena and return the camera ({x, y, scale}), eased toward the followed snake.
- * view: { alpha, prevHeads, follow, human, theme, dpr }
+ * `game` holds the snakes as they should look this frame (head and tail already interpolated
+ * between physics ticks by the caller).
+ * view: { dt, follow, human, theme, dpr }   (dt: milliseconds since the previous frame)
  * theme: { board, outside, grid, wall, fg }
  */
 export function drawArena(ctx, game, cfg, view, camera) {
@@ -26,10 +21,12 @@ export function drawArena(ctx, game, cfg, view, camera) {
   const target = game.snakes[view.follow];
   let cam = camera;
   if (target && target.alive) {
-    const [fx, fy] = headAt(game, view.prevHeads, view.follow, view.alpha);
+    const [fx, fy] = target.body[0];
     const want = Math.min(W, H) / (2 * (70 + 6 * bodyRadius(target.mass, cfg)));
+    // exponential smoothing in real time, so the camera feels the same at any frame rate
+    const kPos = 1 - Math.exp(-view.dt / 75), kZoom = 1 - Math.exp(-view.dt / 325);
     cam = camera
-      ? { x: camera.x + (fx - camera.x) * 0.2, y: camera.y + (fy - camera.y) * 0.2, scale: camera.scale + (want - camera.scale) * 0.05 }
+      ? { x: camera.x + (fx - camera.x) * kPos, y: camera.y + (fy - camera.y) * kPos, scale: camera.scale + (want - camera.scale) * kZoom }
       : { x: fx, y: fy, scale: want };
   } else if (!cam) {
     cam = { x: 0, y: 0, scale: Math.min(W, H) / (2.1 * cfg.arena_radius) };
@@ -96,8 +93,7 @@ function drawSnake(ctx, game, cfg, k, view, sx, sy, scale) {
   const s = game.snakes[k];
   const color = COLORS[k % COLORS.length];
   const r = bodyRadius(s.mass, cfg) * scale;
-  const head = headAt(game, view.prevHeads, k, view.alpha);
-  const pts = [head, ...s.body.slice(1)];
+  const pts = s.body, head = pts[0];
   const tail = Math.min(12, Math.floor(pts.length / 3));
   const main = pts.length - tail;
   const path = (from, to) => {

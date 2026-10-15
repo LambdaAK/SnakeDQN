@@ -10,7 +10,7 @@
 
 import { CONFIG, decodeAction, newArena, randomU, respawnSlot, stepTick } from "./rules.js";
 import { actionMask, observe, obsSize } from "./observe.js";
-import { COLORS, NAMES, drawArena } from "./render.js";
+import { COLORS, NAMES, drawArena } from "./render.js?v=3";
 
 const ORT_VERSION = "1.20.1";
 const ORT_CDN = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/`;
@@ -18,7 +18,9 @@ const MODEL = { file: "model.onnx", mb: 0.6 };
 const SLOTS = 12;
 const SNAKES = 10;        // enabled slots; in Play mode slot 0 is you
 const HUMAN = 0;
-const MAX_CATCH_UP = 8;   // physics ticks per frame before a backlog is dropped
+const MAX_CATCH_UP = 8;   // physics ticks per advance() call, times the speed
+const SPEEDS = [1, 2, 3, 5];
+const LEAD_TICKS = 2;     // the simulation stays this many ticks ahead of what is drawn
 
 const TEMPLATE = `
   <div class="sl-tabs" role="tablist">
@@ -36,6 +38,7 @@ const TEMPLATE = `
       <div class="sl-pills">
         <button type="button" data-sl="restart">Restart</button>
         <button type="button" data-sl="pause">Pause</button>
+        <button type="button" data-sl="speed">Speed 1×</button>
       </div>
       <p class="sl-meta" data-sl="hint"></p>
     </div>
@@ -80,13 +83,18 @@ export function mountSlitherDemo(root, options = {}) {
   let session = null;
   let started = false, paused = false, visible = true, busy = false;
   let theme = {}, dpr = 1, camera = null;
-  let game, prevHeads, plan, follow;
-  let acc = 0, last = performance.now(), frameNo = 0;
+  let game, plan, follow;
+  let snaps = [], simTick = 0, rt = 0; // recent per-tick states; ticks simulated; render time (ms of game time)
+  let shown = null, lastPanel = "", speed = 1;
+  let last = performance.now(), frameNo = 0;
   let pointer = null, boostHeld = false;
   let gen = 0, failed = false;
   let you = null; // { kills, ticks } for your current life in Play mode
 
-  const heads = () => game.snakes.map((s) => (s.alive ? s.body[0].slice() : null));
+  // What the renderer needs from one snake, copied so later ticks can't change it.
+  const snapSnake = (s) => ({ alive: s.alive, body: s.alive ? s.body.slice() : [], mass: s.mass,
+    heading: s.heading, boosting: s.boosting });
+  const snapshot = () => ({ t: simTick * tickMs, snakes: game.snakes.map(snapSnake) });
   const followed = () => (mode === "play" && game.snakes[HUMAN].alive ? HUMAN : follow);
   const name = (k) => (mode === "play" && k === HUMAN ? "You" : NAMES[k % NAMES.length]);
 
@@ -103,12 +111,13 @@ export function mountSlitherDemo(root, options = {}) {
     gen++;
     boostHeld = false;
     game = newArena(SLOTS, SNAKES, cfg);
-    prevHeads = heads();
+    simTick = 0;
+    rt = 0;
+    snaps = [snapshot()];
     plan = Array.from({ length: SLOTS }, () => ({ turn: 0, boost: false }));
     follow = mode === "play" ? HUMAN : biggest();
     you = mode === "play" ? { kills: 0, ticks: 0 } : null;
     camera = null;
-    acc = 0;
     if (session) hideOverlay();
   }
 
@@ -153,7 +162,6 @@ export function mountSlitherDemo(root, options = {}) {
       turns[HUMAN] = humanTurn();
       boosts[HUMAN] = boostHeld;
     }
-    prevHeads = heads();
     const ev = stepTick(game, turns, boosts, randomU(SLOTS, cfg), cfg);
     if (mode === "play" && you) {
       if (game.snakes[HUMAN].alive || ev.died[HUMAN]) {
@@ -162,6 +170,8 @@ export function mountSlitherDemo(root, options = {}) {
       }
       if (ev.died[HUMAN]) onHumanDeath();
     }
+    simTick++;
+    snaps.push(snapshot());
     if (!game.snakes[follow]?.alive) follow = biggest();
     return true;
   }
@@ -178,19 +188,36 @@ export function mountSlitherDemo(root, options = {}) {
     const s = game.snakes[HUMAN];
     s.enabled = true;
     respawnSlot(game, HUMAN, randomU(SLOTS, cfg), cfg);
-    prevHeads[HUMAN] = null;
+    snaps[snaps.length - 1].snakes[HUMAN] = snapSnake(s);
     you = { kills: 0, ticks: 0 };
     hideOverlay();
   }
 
+  // Run physics until the simulation is LEAD_TICKS ahead of the render clock. Inference makes
+  // some ticks slow, but the render clock only reads finished states, so drawing stays smooth.
   async function advance() {
     let n = 0;
-    while (acc >= tickMs && n < MAX_CATCH_UP) {
-      if (!(await tick())) { acc = 0; break; }
-      acc -= tickMs;
+    while (simTick * tickMs < rt + LEAD_TICKS * tickMs && n < MAX_CATCH_UP * speed) {
+      if (!(await tick())) break;
       n++;
     }
-    if (acc >= tickMs) acc = 0; // fell behind (slow device or busy tab): drop the backlog
+  }
+
+  // The arena at render time `rt`: the two bracketing tick states, blended. Head and tail
+  // are interpolated (the body in between moves rigidly one point per tick).
+  function interpolated() {
+    while (snaps.length > 2 && snaps[1].t <= rt) snaps.shift();
+    const A = snaps[0], B = snaps[snaps.length > 1 ? 1 : 0];
+    const f = B.t > A.t ? Math.max(0, Math.min(1, (rt - A.t) / (B.t - A.t))) : 1;
+    const lerp = (p, q) => [p[0] + (q[0] - p[0]) * f, p[1] + (q[1] - p[1]) * f];
+    return { food: game.food, snakes: B.snakes.map((sb, k) => {
+      const sa = A.snakes[k];
+      if (!sb.alive || !sa.alive || sa === sb || sb.body.length < 2 || sa.body.length < 2) return sb;
+      const body = sb.body.slice();
+      body[0] = lerp(sa.body[0], sb.body[0]);
+      body[body.length - 1] = lerp(sa.body[sa.body.length - 1], sb.body[body.length - 1]);
+      return { ...sb, body };
+    }) };
   }
 
   function frame(now) {
@@ -199,20 +226,22 @@ export function mountSlitherDemo(root, options = {}) {
     last = now;
     const running = started && session && !paused && visible && !failed;
     if (running) {
-      acc += dt;
+      rt += dt * speed;
       if (!busy) {
         busy = true;
         advance().catch((err) => {
           failed = true;
           showOverlay("Something went wrong", String(err.message ?? err),
-            { label: "Retry", run: () => { failed = false; acc = 0; hideOverlay(); newGame(); } });
+            { label: "Retry", run: () => { failed = false; hideOverlay(); newGame(); } });
         })
           .finally(() => { busy = false; });
       }
     }
-    camera = drawArena(ctx, game, cfg, {
-      alpha: running ? Math.min(acc / tickMs, 1) : 1, prevHeads, follow: followed(),
-      human: mode === "play" ? HUMAN : -1, theme, dpr,
+    // never draw past the newest finished state (a slow device just plays slower)
+    rt = Math.min(rt, snaps[snaps.length - 1].t);
+    shown = interpolated();
+    camera = drawArena(ctx, shown, cfg, {
+      dt, follow: followed(), human: mode === "play" ? HUMAN : -1, theme, dpr,
     }, camera);
     if (++frameNo % 6 === 0) updatePanel();
   }
@@ -222,9 +251,12 @@ export function mountSlitherDemo(root, options = {}) {
   function updatePanel() {
     const top = game.snakes.map((s, k) => [k, s]).filter(([, s]) => s.alive)
       .sort((a, b) => b[1].mass - a[1].mass).slice(0, 5);
-    $("leaders").innerHTML = top.map(([k, s]) => `<li data-k="${k}" class="${k === followed() ? "sl-on" : ""}">`
+    const html = top.map(([k, s]) => `<li data-k="${k}" class="${k === followed() ? "sl-on" : ""}">`
       + `<span class="sl-dot" style="background:${COLORS[k % COLORS.length]}"></span><span>${name(k)}</span>`
       + `<span class="sl-mass">${Math.round(s.mass)}</span></li>`).join("");
+    if (html === lastPanel) return; // only touch the DOM when something changed
+    lastPanel = html;
+    $("leaders").innerHTML = html;
   }
 
   // ---------- overlay ----------
@@ -286,7 +318,7 @@ export function mountSlitherDemo(root, options = {}) {
   };
   function pickSnake(p) {
     let best = -1, bestD = 40 * dpr;
-    game.snakes.forEach((s, k) => {
+    (shown ?? game).snakes.forEach((s, k) => {
       if (!s.alive || !camera) return;
       const x = canvas.width / 2 + (s.body[0][0] - camera.x) * camera.scale;
       const y = canvas.height / 2 + (s.body[0][1] - camera.y) * camera.scale;
@@ -324,6 +356,10 @@ export function mountSlitherDemo(root, options = {}) {
   $("pause").addEventListener("click", () => {
     paused = !paused;
     $("pause").textContent = paused ? "Resume" : "Pause";
+  });
+  $("speed").addEventListener("click", () => {
+    speed = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length];
+    $("speed").textContent = `Speed ${speed}×`;
   });
 
   function readTheme() {
