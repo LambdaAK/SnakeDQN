@@ -3,8 +3,10 @@
 import math
 from dataclasses import replace
 
-from snake_rl.slither.config import SlitherConfig
-from snake_rl.slither.rules import from_snapshots
+import numpy as np
+
+from snake_rl.slither.config import SlitherConfig, u_layout
+from snake_rl.slither.rules import SlitherState, from_snapshots, reset_arenas
 
 # Unit-test config: no natural food, so scenes contain only the pellets a test places.
 QUIET = replace(SlitherConfig(), natural_food_target=0)
@@ -37,3 +39,22 @@ def scene(snakes, food=(), cfg=QUIET, tick=0):
 
 def state_of(*scenes, cfg=QUIET):
     return from_snapshots(list(scenes), cfg)
+
+
+# A small, crowded arena: frequent deaths, kills and respawns.
+SMALL = replace(SlitherConfig(), arena_radius=120.0, respawn_margin=30.0, respawn_clearance=20.0,
+                respawn_delay=5, natural_food_target=60)
+
+
+def random_ticks(cfg, num_envs, slots, ticks, seed):
+    """Yield (state, turn, boost, u) before each of `ticks` random ticks; the caller steps."""
+    rng = np.random.default_rng(seed)
+    state = SlitherState.empty(num_envs, slots, cfg)
+    counts = rng.integers(2, slots + 1, num_envs)
+    reset_arenas(state, np.arange(slots) < counts[:, None], rng)
+    size = u_layout(slots, cfg)["size"]
+    for _ in range(ticks):
+        turn = rng.uniform(-0.2, 0.2, (num_envs, slots))
+        boost = rng.random((num_envs, slots)) < 0.3
+        u = rng.random((num_envs, size))
+        yield state, turn, boost, u
