@@ -45,6 +45,52 @@ one snake against 5 copies of a scripted bot, so an even contest would win 16.7%
 
 ![Arena win rate over training](docs/arena_training.svg)
 
+## Slither mode
+
+A second, continuous game in the style of slither.io: a circular arena, smooth steering,
+boosting that costs mass, and snakes that collapse into food when they crash.
+
+**[▶ Play it](https://lambdaak.github.io/SnakeDQN/slither/)**
+
+One network snake plays against 7 copies of a scripted bot in 300 arenas, for 5 minutes
+of game time each. An equal snake would hold 12.5% of all the snake mass.
+
+| Opponents (×7) | Share of all snake mass | Kills per death |
+|---|---|---|
+| Hunter bots (forage, and boost to cut off smaller snakes) | **36.3%** (35.4–37.2) | 10.9 (9.8–12.3) |
+| Forager bots (steer to the most food, avoid danger) | **35.9%** (35.1–36.8) | 10.5 (9.5–11.7) |
+| Wander bots (random, avoid danger) | **55.8%** (54.9–56.7) | 7.8 (6.7–9.1) |
+
+The share is measured over 5 minutes of game time per arena; the network rarely dies, so it keeps growing and its share rises with time (about 19% over the first minute, as in the training-time evaluation).
+
+How it differs from the grid game:
+
+- **Physics:** each snake is a chain of points 1 unit apart. The head moves 1 unit per
+  tick (2 when boosting) and turns at most 0.15 rad per tick. Physics runs at 30 Hz and
+  the network decides at 10 Hz.
+- **Speed and verification:** `snake_rl/slither` runs 12,566 snake decisions per second in
+  vectorised NumPy (M3 Max CPU, 256 arenas). It is checked tick for tick against a
+  plain-Python reference, and against the browser's JavaScript port.
+- **Senses and actions:**
+  - The network sees 32 sectors around its head, each recording the nearest wall, body
+    and head, and the food in it. Sector 16 points straight ahead.
+  - It also sees its own size and where the centre is.
+  - It picks one of 9 steering angles, with or without boost.
+  - It is a 2-layer MLP.
+- **Training:**
+  - PPO self-play in arenas of 6–12 snakes.
+  - Each life is played by the learner or by a frozen past version.
+  - The reward is 0.1 per unit of mass gained, minus 1 for dying.
+  - It trained for 136 iterations (4.5M arena decisions) in 2.5 h on an M3 Max.
+
+```bash
+uv run python scripts/benchmark_slither.py
+uv run --group train python scripts/train_slither.py --device mps --hours 2.5
+uv run --group train python scripts/eval_slither.py runs/slither/best.pt
+uv run --group train python scripts/build_slither_assets.py --run-dir runs/slither \
+    --final-eval results/slither_eval.json                    # -> web/slither/model.onnx, stats.json
+```
+
 ## How it works
 
 **1. A fast, verified simulator.** `snake_rl/env` implements the standard Battlesnake

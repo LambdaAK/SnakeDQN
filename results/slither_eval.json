@@ -1,0 +1,78 @@
+{
+  "policy": "runs/slither/best.pt",
+  "snakes": 8,
+  "results": {
+    "wander": {
+      "policy": "runs/slither/best.pt",
+      "bot": "wander",
+      "arenas": 300,
+      "decisions": 3000,
+      "mean_mass": 259.7047786266925,
+      "mean_mass_ci": [
+        253.45758900698604,
+        266.0514951636387
+      ],
+      "mass_share": 0.558318547922613,
+      "mass_share_ci": [
+        0.5493893663042788,
+        0.5671214794190885
+      ],
+      "kills": 1862,
+      "deaths": 239,
+      "kills_per_death": 7.7907949790794975,
+      "kills_per_death_ci": [
+        6.6516787439613525,
+        9.12204197390811
+      ],
+      "mean_life": 1385.1255230125523
+    },
+    "forager": {
+      "policy": "runs/slither/best.pt",
+      "bot": "forager",
+      "arenas": 300,
+      "decisions": 3000,
+      "mean_mass": 237.5602167300567,
+      "mean_mass_ci": [
+        230.84426509433487,
+        244.79167286758653
+      ],
+      "mass_share": 0.35940520678977245,
+      "mass_share_ci": [
+        0.35093984773956005,
+        0.36812692681526166
+      ],
+      "kills": 4803,
+      "deaths": 459,
+      "kills_per_death": 10.4640522875817,
+      "kills_per_death_ci": [
+        9.475122967375032,
+        11.728239633650581
+      ],
+      "mean_life": 1156.8823529411766
+    },
+    "hunter": {
+      "policy": "runs/slither/best.pt",
+      "bot": "hunter",
+      "arenas": 300,
+      "decisions": 3000,
+      "mean_mass": 243.76579076881063,
+      "mean_mass_ci": [
+        236.62570478764178,
+        251.3038847351363
+      ],
+      "mass_share": 0.3630783812351469,
+      "mass_share_ci": [
+        0.35401510964709393,
+        0.37209204689954783
+      ],
+      "kills": 5004,
+      "deaths": 457,
+      "kills_per_death": 10.949671772428884,
+      "kills_per_death_ci": [
+        9.804746176926054,
+        12.298249113475176
+      ],
+      "mean_life": 1123.0525164113785
+    }
+  }
+}

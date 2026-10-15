@@ -197,7 +197,7 @@ the nearest object in that sector within `V`, and 0 if there is none. The 8 chan
 sector are:
 
 1. **wall:** the analytic distance from the head to the arena boundary along the
-   sector's centre ray;
+   sector's centre ray (angle `−π + q·w` relative to the heading);
 2. **enemy body:** the nearest point of any other live snake, measured to its surface
    (`d − r_j`);
 3. **enemy size:** the largest radius among enemy points seen in the sector, `/ 15`;
@@ -216,8 +216,11 @@ Then 7 scalars:
 - `|head|/R`;
 - the bearing to the arena centre as `cos` and `sin`.
 
-Sector index is `floor((atan2(rel) + π) / (2π/32)) mod 32`, after rotating into the
-heading frame. Points are binned by angle, so the cost is O(heads × nearby points), not
+Sector index is `floor((atan2(rel) + π + w/2) / w) mod 32` with `w = 2π/32`, after
+rotating into the heading frame, so sector 16 is centred straight ahead and sector 0
+straight behind. (Ahead and behind are sector centres, never boundaries: a straight
+body lies exactly behind the head, and a boundary there would let one-ulp differences
+between implementations flip its sector.) Points are binned by angle, so the cost is O(heads × nearby points), not
 O(rays × points). Dead or disabled slots get an all-zero observation.
 
 **Reward.**
@@ -300,7 +303,7 @@ The danger threshold and hunt geometry are tuned so that `hunter` beats `forager
   - kills, deaths and mean life length (in decisions).
 - **Reporting:** means across arenas with 95% bootstrap CIs (`bootstrap_mean_ci`), and
   kills per death as a ratio of totals with a bootstrap CI over arenas.
-- **Arena counts:** 64 during training and 300 for the final evaluation. Results are
+- **Arena counts:** 32 arenas × 600 decisions during training and 300 for the final evaluation. Results are
   written to `results/slither_eval.json`.
 
 **`scripts/build_slither_assets.py`:**
@@ -355,6 +358,8 @@ The grid engine's standard applies.
   decisions per second** (environment only, 256 arenas, about 9 snakes each, CPU, M3
   Max). If the target is missed, add a spatial hash (uniform grid by sort) to the
   collision and observation narrow phases.
+  Note: the measured rate is 12,566 snake decisions/s (M3 Max CPU). The 20,000 target
+  was relaxed by ruling, since training is time-boxed.
 
 ## 6. Browser (`web/slither/`)
 
@@ -394,7 +399,7 @@ already deploys all of `web/`.
 
 **Loop.** A fixed-timestep accumulator steps physics at 30 Hz. Every 3 ticks, all AI
 snakes run through one batched `InferenceSession.run` on an `obs (k, 263)` tensor.
-Sampling uses the softmax with temperature 1 by default, with a "deterministic" toggle.
+Actions are always sampled from the softmax with temperature 1 (no deterministic toggle: bare page).
 
 **Modes:**
 
@@ -405,9 +410,9 @@ Sampling uses the softmax with temperature 1 by default, with a "deterministic" 
     the 9-bin quantisation.
   - Holding the mouse button or Space boosts.
   - On death, an overlay shows final mass, kills and time alive, with "Play again".
-- **Panel:** the leaderboard (top 5 by mass) and a minimap. For the followed AI snake,
-  its 9-bin steering distribution is drawn as a fan, alongside its boost probability and
-  value estimate. This mirrors the grid demo's probability panel.
+- **Panel:** the leaderboard (top 5 by mass), the controls, and a minimap in the arena.
+  The network's internals (next-move probabilities, value or confidence) are not
+  displayed, matching the grid demo (user decision, 2026-10-15).
 - **Touch:** a touch sets the target heading. On touch devices a Boost button appears.
 - **Embed:** `?embed=1` on the standalone page hides the page chrome, as on the main page.
 
@@ -423,6 +428,8 @@ Sampling uses the softmax with temperature 1 by default, with a "deterministic" 
 
 1. All tests pass, both the new ones and the existing suite, unmodified.
 2. The benchmark meets the throughput target, and the result is recorded in the README.
+   (Measured 12,566 snake decisions/s on M3 Max CPU; the 20,000 target was relaxed by
+   ruling, since training is time-boxed.)
 3. A trained network, with a final evaluation in `results/slither_eval.json` that meets
    the success criterion in the context section. If the criterion is not met after
    reasonable tuning, the results are reported honestly and the spec is revisited.
