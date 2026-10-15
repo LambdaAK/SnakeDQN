@@ -1,4 +1,4 @@
-import { actionMask, DIRECTIONS, greedyAction, newGame, NUM_CHANNELS, observation, step } from "./rules.js";
+import { actionMask, DIRECTIONS, greedyAction, newGame, NUM_CHANNELS, observation, step } from "./rules.js?v=3";
 
 const BOARD = 11;
 const COLORS = ["#f59e0b", "#38bdf8"];
@@ -20,26 +20,29 @@ let session = null;
 let mode = "watch";
 let game = null;
 let prev = null; // state before the latest turn, for animating between turns
-let lastTick = 0;
-let tickDelay = 300;
+let lastTick = 0; // time the latest turn started animating (fixed cadence, see advance)
+let tickDelay = 180;
 let paused = false;
-let busy = false;
-let timer = null;
+let pausedAt = 0;
 let restartTimer = null;
 let waitingForHuman = false;
 let humanQueue = [];
 let brain = { probs: null, value: null, chosen: -1 };
+let aiPlan = null; // AI moves for the current state, decided while the last move animates
+let planToken = 0;
 const tally = { watch: [0, 0, 0], play: [0, 0, 0], bot: [0, 0, 0] };
 
 if (new URLSearchParams(location.search).has("embed")) document.body.classList.add("embed");
 
 // ---------- game flow ----------
+// The game is turn-based, exactly like training. The animation loop (frame) owns the
+// clock: it renders every display frame and advances one turn every tickDelay ms, so
+// motion stays continuous. AI moves are computed ahead of time so turns never stall.
 
 function startGame() {
   clearTimeout(restartTimer);
   game = newGame(BOARD, 2);
   prev = structuredClone(game);
-  lastTick = performance.now();
   brain = { probs: null, value: null, chosen: -1 };
   humanQueue = [];
   waitingForHuman = MODES[mode].controllers.includes("human");
@@ -49,58 +52,58 @@ function startGame() {
   } else {
     hideOverlay();
   }
+  lastTick = performance.now();
+  planNext();
   updatePanel();
-  schedule();
 }
 
-function schedule() {
-  clearTimeout(timer);
-  tickDelay = 440 - Number($("speed").value);
-  timer = setTimeout(async () => {
-    await tick();
-    if (!game.over) schedule();
-  }, tickDelay);
+function planNext() {
+  const token = ++planToken;
+  aiPlan = null;
+  decideAI(game).then((plan) => {
+    if (token === planToken) aiPlan = plan;
+  });
 }
 
-async function tick() {
-  if (!session || paused || busy || game.over || waitingForHuman) return;
-  busy = true;
-  try {
-    const actions = await chooseActions();
-    prev = structuredClone(game);
-    step(game, actions);
-    lastTick = performance.now();
-  } finally {
-    busy = false;
-  }
-  updatePanel();
-  // Let the final move finish animating before announcing the result.
-  if (game.over) restartTimer = setTimeout(onGameOver, tickDelay);
-}
-
-async function chooseActions() {
-  const controllers = MODES[mode].controllers;
+async function decideAI(state) {
   const actions = [0, 0];
-  const aiSnakes = controllers.map((c, i) => (c === "ai" && game.snakes[i].alive ? i : -1)).filter((i) => i >= 0);
-  if (aiSnakes.length) {
+  let decided = null;
+  const controllers = MODES[mode].controllers;
+  const aiSnakes = controllers.map((c, i) => (c === "ai" && state.snakes[i].alive ? i : -1)).filter((i) => i >= 0);
+  if (aiSnakes.length && session) {
     const plane = NUM_CHANNELS * BOARD * BOARD;
     const data = new Float32Array(aiSnakes.length * plane);
-    aiSnakes.forEach((i, j) => data.set(observation(game, i), j * plane));
+    aiSnakes.forEach((i, j) => data.set(observation(state, i), j * plane));
     const out = await session.run({ obs: new ort.Tensor("float32", data, [aiSnakes.length, NUM_CHANNELS, BOARD, BOARD]) });
     aiSnakes.forEach((i, j) => {
-      const probs = maskedSoftmax(Array.from(out.logits.data.slice(j * 4, j * 4 + 4)), actionMask(game, i));
+      const probs = maskedSoftmax(Array.from(out.logits.data.slice(j * 4, j * 4 + 4)), actionMask(state, i));
       // Two copies of one deterministic network mirror each other from symmetric starts,
       // so AI-vs-AI samples from the policy (as in training); other modes play greedily.
       actions[i] = mode === "watch" ? sample(probs) : probs.indexOf(Math.max(...probs));
-      if (i === 0) brain = { probs, value: out.value.data[j], chosen: actions[i] };
+      if (i === 0) decided = { probs, value: out.value.data[j], chosen: actions[i] };
     });
   }
-  controllers.forEach((c, i) => {
+  return { actions, brain: decided };
+}
+
+function advance(now) {
+  if (!session || paused || waitingForHuman || game.over || !aiPlan) return;
+  if (now - lastTick < tickDelay) return;
+  const actions = aiPlan.actions.slice();
+  if (aiPlan.brain) brain = aiPlan.brain;
+  MODES[mode].controllers.forEach((c, i) => {
     if (!game.snakes[i].alive) return;
     if (c === "greedy") actions[i] = greedyAction(game, i);
-    if (c === "human") actions[i] = humanAction(i);
+    if (c === "human") actions[i] = humanAction(i); // read at the last moment: most responsive
   });
-  return actions;
+  prev = structuredClone(game);
+  step(game, actions);
+  // Keep a fixed cadence; only resynchronise after a long stall (e.g. a background tab).
+  lastTick = now - lastTick < 2 * tickDelay ? lastTick + tickDelay : now;
+  updatePanel();
+  // Let the final move finish animating before announcing the result.
+  if (game.over) restartTimer = setTimeout(onGameOver, tickDelay);
+  else planNext();
 }
 
 function sample(probs) {
@@ -164,12 +167,14 @@ function onDirection(dir) {
     startGame();
     humanQueue = [dir];
     waitingForHuman = false;
+    lastTick = performance.now() - tickDelay;
     hideOverlay();
     return;
   }
   if (humanQueue.length < 2) humanQueue.push(dir);
   if (waitingForHuman) {
     waitingForHuman = false;
+    lastTick = performance.now() - tickDelay;
     hideOverlay();
   }
 }
@@ -216,7 +221,6 @@ function render(t) {
 }
 
 const lerp = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
-const easeInOut = (t) => t * t * (3 - 2 * t);
 function easeOutBack(t) {
   const c = 1.7;
   return 1 + (c + 1) * (t - 1) ** 3 + c * (t - 1) ** 2;
@@ -240,8 +244,7 @@ function drawSnake(before, snake, color, cell, t) {
   } else {
     ctx.globalAlpha = died ? 1 - 0.7 * t : 1;
   }
-  const s = easeInOut(t);
-  const points = bodyPoints(before, snake, s).map(([r, c]) => [(c + 0.5) * cell, (r + 0.5) * cell]);
+  const points = bodyPoints(before, snake, t).map(([r, c]) => [(c + 0.5) * cell, (r + 0.5) * cell]);
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   ctx.lineWidth = cell * 0.64;
@@ -279,8 +282,11 @@ function mix(a, b, t) {
 }
 
 function frame(now) {
-  const t = paused ? 1 : Math.min(1, (now - lastTick) / tickDelay);
-  render(t);
+  if (game) {
+    advance(now);
+    const clock = paused ? pausedAt : now;
+    render(Math.max(0, Math.min(1, (clock - lastTick) / tickDelay)));
+  }
   requestAnimationFrame(frame);
 }
 
@@ -397,7 +403,8 @@ $("restart").addEventListener("click", () => { waitForReplay = false; startGame(
 $("pause").addEventListener("click", () => {
   paused = !paused;
   $("pause").textContent = paused ? "Resume" : "Pause";
-  if (!paused) schedule();
+  if (paused) pausedAt = performance.now();
+  else lastTick += performance.now() - pausedAt;
 });
 document.querySelectorAll("#dpad button").forEach((b) => b.addEventListener("click", () => onDirection(Number(b.dataset.dir))));
 window.addEventListener("keydown", (e) => {
@@ -426,6 +433,7 @@ canvas.addEventListener("click", (e) => {
   if (Math.max(Math.abs(dx), Math.abs(dy)) < 0.5) return;
   onDirection(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 3 : 2) : (dy > 0 ? 1 : 0));
 });
+$("speed").addEventListener("input", () => { tickDelay = 440 - Number($("speed").value); });
 window.addEventListener("resize", resizeCanvas);
 
 async function init() {
