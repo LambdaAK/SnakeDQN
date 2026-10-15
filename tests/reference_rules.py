@@ -23,6 +23,7 @@ class RefGame:
     max_health: int
     turn: int
     over: bool
+    min_food: int = MIN_FOOD
 
 
 def from_state(state, env):
@@ -33,7 +34,7 @@ def from_state(state, env):
         snakes.append(RefSnake(segments, int(state.health[env, k]), bool(state.alive[env, k])))
     food = {(int(r), int(c)) for r, c in zip(*state.food[env].nonzero())}
     return RefGame(state.board_size, snakes, food, state.max_health,
-                   int(state.turn[env]), bool(state.over[env]))
+                   int(state.turn[env]), bool(state.over[env]), state.min_food)
 
 
 def ref_step(game, actions, spawn_u):
@@ -58,7 +59,7 @@ def ref_step(game, actions, spawn_u):
             eaten.add(snake.body[0])
     game.food -= eaten
 
-    if len(game.food) < MIN_FOOD or spawn_u[0] < SPAWN_CHANCE:
+    if len(game.food) < game.min_food or spawn_u[0] < SPAWN_CHANCE:
         occupied = {seg for i in movers for seg in game.snakes[i].body}
         free = [(r, c) for r in range(b) for c in range(b)
                 if (r, c) not in game.food and (r, c) not in occupied]

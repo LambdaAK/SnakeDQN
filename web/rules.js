@@ -10,7 +10,7 @@ export const NUM_CHANNELS = 8;
 export const DIRECTIONS = [[-1, 0], [1, 0], [0, -1], [0, 1]];
 const DIAGONALS = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
 
-export function newGame(boardSize, numSnakes, random = Math.random, maxHealth = 100) {
+export function newGame(boardSize, numSnakes, random = Math.random, maxHealth = 100, minFood = MIN_FOOD) {
   const b = boardSize;
   const a = 1, m = Math.floor(b / 2), z = b - 2;
   const corners = [[a, a], [a, z], [z, a], [z, z]];
@@ -34,7 +34,7 @@ export function newGame(boardSize, numSnakes, random = Math.random, maxHealth = 
     const [fr, fc] = allowed[Math.floor(random() * allowed.length)];
     food[fr * b + fc] = 1;
   }
-  return { boardSize: b, maxHealth, snakes, food, turn: 0, over: false, winner: -1 };
+  return { boardSize: b, maxHealth, minFood, snakes, food, turn: 0, over: false, winner: -1 };
 }
 
 function shuffle(items, random) {
@@ -80,7 +80,7 @@ export function step(game, actions, u0 = Math.random(), u1 = Math.random()) {
 
   let foodCount = 0;
   for (const f of game.food) foodCount += f;
-  if (foodCount < MIN_FOOD || u0 < SPAWN_CHANCE) {
+  if (foodCount < (game.minFood ?? MIN_FOOD) || u0 < SPAWN_CHANCE) {
     const occupied = new Uint8Array(b * b);
     for (const i of movers) {
       for (const seg of game.snakes[i].body) if (onBoard(b, seg)) occupied[seg[0] * b + seg[1]] = 1;
@@ -191,4 +191,26 @@ export function greedyAction(game, k, random = Math.random) {
     if (score > bestScore) { bestScore = score; best = a; }
   });
   return best;
+}
+
+// Head-centred window (see build_window_observations in Python): NUM_CHANNELS planes
+// cropped around snake k's head, plus a wall plane that is 1 outside the board.
+export function windowObservation(game, k, window) {
+  const b = game.boardSize, plane = b * b, wPlane = window * window, r = Math.floor(window / 2);
+  const full = observation(game, k);
+  const out = new Float32Array((NUM_CHANNELS + 1) * wPlane);
+  const [hr0, hc0] = game.snakes[k].body[0];
+  const hr = Math.min(Math.max(hr0, 0), b - 1), hc = Math.min(Math.max(hc0, 0), b - 1);
+  for (let i = 0; i < window; i++) {
+    for (let j = 0; j < window; j++) {
+      const row = hr - r + i, col = hc - r + j;
+      const w = i * window + j;
+      if (row < 0 || row >= b || col < 0 || col >= b) {
+        out[NUM_CHANNELS * wPlane + w] = 1;
+        continue;
+      }
+      for (let ch = 0; ch < NUM_CHANNELS; ch++) out[ch * wPlane + w] = full[ch * plane + row * b + col];
+    }
+  }
+  return out;
 }

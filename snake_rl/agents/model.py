@@ -12,13 +12,17 @@ class PolicyNet(nn.Module):
     """obs float32 (B, C, H, W) -> (action logits (B, 4), value (B,)).
 
     A constant plane of ones is appended before the convolutions; with zero padding
-    it tells the network where the walls are."""
+    it tells the network where the walls are. With `window` > 0 the network reads a
+    head-centred window (see build_window_observations) instead of the whole board, and
+    `board_size` is the window size."""
 
-    def __init__(self, board_size: int = 11, channels: int = NUM_CHANNELS, hidden: int = 256):
+    def __init__(self, board_size: int = 11, channels: int = NUM_CHANNELS, hidden: int = 256,
+                 window: int = 0):
         super().__init__()
         self.board_size = board_size
         self.channels = channels
         self.hidden = hidden
+        self.window = window
         self.conv = nn.Sequential(
             nn.Conv2d(channels + 1, 32, 3, padding=1), nn.ReLU(),
             nn.Conv2d(32, 64, 3, padding=1), nn.ReLU(),
@@ -36,7 +40,8 @@ class PolicyNet(nn.Module):
         return self.policy(h), self.value(h).squeeze(-1)
 
     def config(self) -> dict:
-        return {"board_size": self.board_size, "channels": self.channels, "hidden": self.hidden}
+        return {"board_size": self.board_size, "channels": self.channels, "hidden": self.hidden,
+                "window": self.window}
 
 
 def masked_logits(logits: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:

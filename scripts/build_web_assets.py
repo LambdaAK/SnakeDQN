@@ -83,12 +83,16 @@ def main(argv=None):
     p.add_argument("--checkpoint", default="best.pt")
     p.add_argument("--final-eval", help="JSON written by scripts/final_eval.py, merged into stats")
     p.add_argument("--out-dir", default=str(ROOT / "web"))
+    p.add_argument("--model-name", default="model.onnx")
+    p.add_argument("--stats-name", default="stats.json")
+    p.add_argument("--chart", default=str(ROOT / "docs" / "training.svg"),
+                   help="README chart path; empty to skip")
     args = p.parse_args(argv)
 
     run_dir, out_dir = Path(args.run_dir), Path(args.out_dir)
     model = load_policy(run_dir / args.checkpoint)
     checkpoint = torch.load(run_dir / args.checkpoint, map_location="cpu", weights_only=True)
-    export_onnx(model, out_dir / "model.onnx")
+    export_onnx(model, out_dir / args.model_name)
 
     stats = {
         "checkpoint": {"iteration": checkpoint["iteration"], "env_steps": checkpoint["env_steps"],
@@ -97,9 +101,10 @@ def main(argv=None):
     }
     if args.final_eval:
         stats["final_eval"] = json.loads(Path(args.final_eval).read_text())
-    (out_dir / "stats.json").write_text(json.dumps(stats, indent=2) + "\n")
-    training_svg(stats["curve"], ROOT / "docs" / "training.svg")
-    print(f"wrote {out_dir / 'model.onnx'} and {out_dir / 'stats.json'} "
+    (out_dir / args.stats_name).write_text(json.dumps(stats, indent=2) + "\n")
+    if args.chart and stats["curve"]:
+        training_svg(stats["curve"], args.chart)
+    print(f"wrote {out_dir / args.model_name} and {out_dir / args.stats_name} "
           f"(iteration {checkpoint['iteration']}, {checkpoint['env_steps']:,} env steps)")
 
 

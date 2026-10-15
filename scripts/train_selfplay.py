@@ -1,10 +1,13 @@
-"""PPO self-play training on 11x11 two-snake Battlesnake.
+"""PPO self-play training for Battlesnake.
 
-Each env seats the learner as snake 0. Snake 1 is the learner too (pure self-play,
-both seats produce training data) or, with probability --pool-prob, a frozen past
-snapshot. Progress is measured against the scripted flood-fill and greedy bots.
+Each env seats the learner as snake 0. The other snakes are the learner too (pure
+self-play, every seat produces training data) or, with probability --pool-prob, a
+frozen past snapshot. Progress is measured against the scripted flood-fill and greedy
+bots (one learner seat against bots in every other seat).
 
-  uv run --group train python scripts/train_selfplay.py --hours 3
+  1v1 on 11x11:   uv run --group train python scripts/train_selfplay.py --hours 3
+  arena:          uv run --group train python scripts/train_selfplay.py --board 19 \
+                      --num-snakes 6 --window 17 --min-food 6 --hidden 128 --num-envs 256
 """
 
 import argparse
@@ -21,7 +24,8 @@ from torch.distributions import Categorical
 from snake_rl.agents import NeuralPolicy, PolicyNet, masked_logits
 from snake_rl.baselines import make_bot
 from snake_rl.env import SnakeEnv
-from snake_rl.env.observations import NUM_CHANNELS
+from snake_rl.env.observations import (NUM_CHANNELS, NUM_WINDOW_CHANNELS,
+                                       build_window_observations)
 from snake_rl.eval import run_matches
 
 
@@ -30,6 +34,12 @@ def parse_args(argv=None):
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--run-dir", default="runs/selfplay")
     p.add_argument("--num-envs", type=int, default=512)
+    p.add_argument("--board", type=int, default=11)
+    p.add_argument("--num-snakes", type=int, default=2)
+    p.add_argument("--window", type=int, default=0,
+                   help="odd size of a head-centred view; 0 = whole board")
+    p.add_argument("--min-food", type=int, default=1)
+    p.add_argument("--hidden", type=int, default=256)
     p.add_argument("--rollout", type=int, default=64)
     p.add_argument("--iterations", type=int, default=100_000)
     p.add_argument("--hours", type=float, default=None, help="stop after this much wall time")
@@ -54,11 +64,14 @@ def parse_args(argv=None):
     return p.parse_args(argv)
 
 
-def evaluate(model, games, seed):
+def evaluate(model, games, seed, args):
+    """Learner in seat 0 against a scripted bot in every other seat."""
     policy = NeuralPolicy(model, name="ppo")
     out = {}
     for bot in ("flood_fill", "greedy"):
-        result = run_matches([policy, make_bot(bot, seed=seed + 1)], games, seed)
+        bots = [make_bot(bot, seed=seed + 1 + k) for k in range(args.num_snakes - 1)]
+        result = run_matches([policy, *bots], games, seed, board_size=args.board,
+                             min_food=args.min_food)
         seat = result.seats[0]
         out[f"win_vs_{bot}"] = seat.win_rate
         out[f"draw_vs_{bot}"] = seat.draws / games
@@ -81,17 +94,26 @@ def main(argv=None):
     (run_dir / "checkpoints").mkdir(parents=True, exist_ok=True)
     (run_dir / "config.json").write_text(json.dumps(vars(args), indent=2) + "\n")
 
-    n, s, b, c, t_len = args.num_envs, 2, 11, NUM_CHANNELS, args.rollout
-    env = SnakeEnv(n, s, b, reward="winloss", seed=args.seed)
-    model = PolicyNet(b).to(device)
-    opponent = PolicyNet(b).to(device).eval()
+    n, s, b, t_len = args.num_envs, args.num_snakes, args.board, args.rollout
+    env = SnakeEnv(n, s, b, reward="winloss", seed=args.seed, min_food=args.min_food)
+    # o x o input planes of c channels: the whole board, or a head-centred window.
+    o, c = (args.window, NUM_WINDOW_CHANNELS) if args.window else (b, NUM_CHANNELS)
+    net = dict(board_size=o, channels=c, hidden=args.hidden, window=args.window)
+    model = PolicyNet(**net).to(device)
+    opponent = PolicyNet(**net).to(device).eval()
+
+    def observe(full_obs):
+        if args.window:
+            return build_window_observations(env.state, args.window)
+        return full_obs
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, eps=1e-5)
     pool = [copy.deepcopy(model.state_dict())]
 
     obs, info = env.reset()
+    obs = observe(obs)
     use_pool = rng.random(n) < args.pool_prob
 
-    obs_buf = np.zeros((t_len, n, s, c, b, b), np.float16)
+    obs_buf = np.zeros((t_len, n, s, c, o, o), np.float16)
     mask_buf = np.zeros((t_len, n, s, 4), bool)
     act_buf = np.zeros((t_len, n, s), np.int64)
     logp_buf = np.zeros((t_len, n, s), np.float32)
@@ -119,10 +141,10 @@ def main(argv=None):
         model.eval()
         for t in range(t_len):
             learner = np.ones((n, s), bool)
-            learner[:, 1] = ~use_pool
+            learner[:, 1:] = ~use_pool[:, None]
             mask = info["action_mask"]
             with torch.no_grad():
-                obs_t = torch.from_numpy(obs.reshape(n * s, c, b, b)).to(device)
+                obs_t = torch.from_numpy(obs.reshape(n * s, c, o, o)).to(device)
                 mask_t = torch.from_numpy(mask.reshape(n * s, 4)).to(device)
                 logits, value = model(obs_t)
                 dist = Categorical(logits=masked_logits(logits, mask_t))
@@ -131,10 +153,11 @@ def main(argv=None):
                 actions = action.cpu().numpy().reshape(n, s)
                 pool_envs = np.flatnonzero(use_pool)
                 if pool_envs.size:
-                    o_logits, _ = opponent(torch.from_numpy(obs[pool_envs, 1]).to(device))
-                    o_mask = torch.from_numpy(mask[pool_envs, 1]).to(device)
+                    o_obs = obs[pool_envs, 1:].reshape(-1, c, o, o)
+                    o_logits, _ = opponent(torch.from_numpy(o_obs).to(device))
+                    o_mask = torch.from_numpy(mask[pool_envs, 1:].reshape(-1, 4)).to(device)
                     o_action = Categorical(logits=masked_logits(o_logits, o_mask)).sample()
-                    actions[pool_envs, 1] = o_action.cpu().numpy()
+                    actions[pool_envs, 1:] = o_action.cpu().numpy().reshape(pool_envs.size, s - 1)
 
             obs_buf[t] = obs
             mask_buf[t] = mask
@@ -144,6 +167,7 @@ def main(argv=None):
 
             prev_length = info["length"]
             obs, rewards, dones, info = env.step(actions)
+            obs = observe(obs)
             ate = (info["final_length"] > prev_length) & info["active"]
             rew_buf[t] = rewards + args.food_bonus * ate
             done_buf[t] = dones
@@ -160,7 +184,7 @@ def main(argv=None):
                 use_pool[ended] = rng.random(ended.size) < args.pool_prob
 
         with torch.no_grad():
-            _, next_value = model(torch.from_numpy(obs.reshape(n * s, c, b, b)).to(device))
+            _, next_value = model(torch.from_numpy(obs.reshape(n * s, c, o, o)).to(device))
             next_value = next_value.cpu().numpy().reshape(n, s)
         adv = np.zeros_like(rew_buf)
         last = np.zeros((n, s), np.float32)
@@ -173,7 +197,7 @@ def main(argv=None):
         returns = adv + val_buf
 
         valid = valid_buf.reshape(-1)
-        b_obs = torch.from_numpy(obs_buf.reshape(-1, c, b, b)[valid].astype(np.float32)).to(device)
+        b_obs = torch.from_numpy(obs_buf.reshape(-1, c, o, o)[valid].astype(np.float32)).to(device)
         b_mask = torch.from_numpy(mask_buf.reshape(-1, 4)[valid]).to(device)
         b_act = torch.from_numpy(act_buf.reshape(-1)[valid]).to(device)
         b_logp = torch.from_numpy(logp_buf.reshape(-1)[valid]).to(device)
@@ -224,7 +248,7 @@ def main(argv=None):
         if iteration % args.eval_every == 0 or stop or iteration == args.iterations:
             model.eval()
             row.update({k: round(v, 4) for k, v in
-                        evaluate(model, args.eval_games, seed=iteration).items()})
+                        evaluate(model, args.eval_games, iteration, args).items()})
             save_checkpoint(run_dir / "checkpoints" / f"iter_{iteration:05d}.pt",
                             model, iteration, env_steps, row)
             save_checkpoint(run_dir / "latest.pt", model, iteration, env_steps, row)

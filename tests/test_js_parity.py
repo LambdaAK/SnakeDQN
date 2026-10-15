@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from snake_rl.env.observations import build_observations
+from snake_rl.env.observations import build_observations, build_window_observations
 from snake_rl.env.rules import GameState, action_mask, reset_games, step_games
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -25,19 +25,20 @@ def snapshot(state, env):
             "alive": bool(state.alive[env, k]),
         })
     return {
-        "board": state.board_size, "maxHealth": state.max_health,
+        "board": state.board_size, "maxHealth": state.max_health, "minFood": state.min_food,
         "snakes": snakes, "food": [int(i) for i in np.flatnonzero(state.food[env])],
         "turn": int(state.turn[env]), "over": bool(state.over[env]),
     }
 
 
-def make_cases(board_size, num_snakes, steps, seed):
+def make_cases(board_size, num_snakes, steps, seed, min_food=1, window=None):
     rng = np.random.default_rng(seed)
-    state = GameState.empty(16, num_snakes, board_size, max_health=30)
+    state = GameState.empty(16, num_snakes, board_size, max_health=30, min_food=min_food)
     cases = []
     for _ in range(steps):
         reset_games(state, state.over, rng)
-        obs = build_observations(state)
+        obs = (build_observations(state) if window is None
+               else build_window_observations(state, window))
         mask = action_mask(state)
         before = [snapshot(state, e) for e in range(state.num_envs)]
         safe = np.argmax(rng.random(mask.shape) + mask, axis=-1)
@@ -49,7 +50,7 @@ def make_cases(board_size, num_snakes, steps, seed):
                 "before": before[e], "after": snapshot(state, e),
                 "actions": [int(a) for a in actions[e]],
                 "u0": float(spawn_u[e, 0]), "u1": float(spawn_u[e, 1]),
-                "mask": mask[e].tolist(),
+                "mask": mask[e].tolist(), "window": window,
                 "obs": [np.round(obs[e, k].ravel(), 6).tolist() for k in range(num_snakes)],
             })
     return cases
@@ -57,7 +58,8 @@ def make_cases(board_size, num_snakes, steps, seed):
 
 def test_js_rules_match_python(tmp_path):
     cases = (make_cases(11, 2, 120, 0) + make_cases(7, 1, 80, 1)
-             + make_cases(11, 4, 80, 2) + make_cases(8, 3, 60, 3))
+             + make_cases(11, 4, 80, 2) + make_cases(8, 3, 60, 3)
+             + make_cases(19, 6, 60, 4, min_food=5, window=17))
     path = tmp_path / "fixtures.json"
     path.write_text(json.dumps(cases))
     result = subprocess.run(["node", str(ROOT / "web" / "test" / "parity.mjs"), str(path)],

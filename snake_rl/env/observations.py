@@ -51,3 +51,33 @@ def build_observations(state: GameState, envs=None) -> np.ndarray:
     out[:, :, FOOD] = state.food[:, None]
     out[:, :, HEALTH] = (state.health * state.alive / state.max_health)[:, :, None, None]
     return out
+
+
+# Window observations: a fixed-size view centred on each snake's head, so one network
+# works on any board size. Channel NUM_CHANNELS marks cells outside the board (walls).
+WALL = NUM_CHANNELS
+NUM_WINDOW_CHANNELS = NUM_CHANNELS + 1
+
+
+def build_window_observations(state: GameState, window: int, envs=None) -> np.ndarray:
+    """Head-centred crop: float32 (N, S, NUM_WINDOW_CHANNELS, window, window)."""
+    if window % 2 == 0 or window < 3:
+        raise ValueError(f"window must be odd and >= 3, got {window}")
+    full = build_observations(state, envs)
+    if envs is not None:
+        state = state.take(envs)
+    n, s, c, b, _ = full.shape
+    r = window // 2
+    head = np.clip(state.body[:, :, 0].astype(np.int64), 0, b - 1)
+    rows = head[..., 0, None] - r + np.arange(window)  # (N, S, W)
+    cols = head[..., 1, None] - r + np.arange(window)
+    inside = (((rows >= 0) & (rows < b))[:, :, :, None]
+              & ((cols >= 0) & (cols < b))[:, :, None, :])  # (N, S, W, W)
+    ni = np.arange(n)[:, None, None, None]
+    si = np.arange(s)[None, :, None, None]
+    crop = full[ni, si, :, np.clip(rows, 0, b - 1)[:, :, :, None],
+                np.clip(cols, 0, b - 1)[:, :, None, :]]  # (N, S, W, W, C)
+    out = np.empty((n, s, c + 1, window, window), np.float32)
+    out[:, :, :c] = np.moveaxis(crop * inside[..., None], -1, 2)
+    out[:, :, WALL] = ~inside
+    return out

@@ -92,7 +92,7 @@ class MatchResult:
 
 
 def run_matches(policies: Sequence[Policy], n_games: int, seed: int,
-                board_size: int = 11, max_health: int = 100,
+                board_size: int = 11, max_health: int = 100, min_food: int = 1,
                 names: Sequence[str] | None = None) -> MatchResult:
     """Play n_games games, one per env, with policies[i] controlling snake i.
 
@@ -105,7 +105,7 @@ def run_matches(policies: Sequence[Policy], n_games: int, seed: int,
     if names is not None and len(names) != len(policies):
         raise ValueError(f"got {len(names)} names for {len(policies)} policies")
     names = list(names) if names else [getattr(p, "name", f"seat{i}") for i, p in enumerate(policies)]
-    env = SnakeEnv(n_games, s, board_size, max_health=max_health, seed=seed)
+    env = SnakeEnv(n_games, s, board_size, max_health=max_health, seed=seed, min_food=min_food)
     env.reset()
 
     recorded = np.zeros(n_games, bool)

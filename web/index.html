@@ -5,16 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Snake Self-Play</title>
   <meta name="description" content="A neural network that learned multiplayer Snake by playing against itself, running live in your browser.">
-  <link rel="stylesheet" href="style.css?v=4">
+  <link rel="stylesheet" href="style.css?v=6">
   <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.min.js"></script>
 </head>
 <body>
   <header class="hero">
     <p class="eyebrow">Reinforcement learning · self-play · PPO</p>
     <h1>Snake, learned by playing itself</h1>
-    <p class="lede">This network was never shown a single human game. It learned two-player
-      Battlesnake by playing millions of games against copies of itself, and it runs right
-      here in your browser.</p>
+    <p class="lede">These networks were never shown a single human game. They learned
+      Battlesnake, head-to-head and in an up-to-8-snake arena, by playing millions of games
+      against copies of themselves, and they run right here in your browser.</p>
   </header>
 
   <main class="arena">
@@ -34,12 +34,14 @@
         <button role="tab" data-mode="watch" class="active">Watch AI vs AI</button>
         <button role="tab" data-mode="play">Play vs AI</button>
         <button role="tab" data-mode="bot">AI vs greedy bot</button>
+        <button role="tab" data-mode="arena">Arena: up to 8 AIs</button>
       </div>
 
       <div class="controls">
         <button id="restart">New game</button>
         <button id="pause">Pause</button>
         <label class="speed">Speed <input id="speed" type="range" min="40" max="380" value="260" step="20"></label>
+        <label id="arena-controls" class="speed" hidden>Snakes <input id="arena-snakes" type="range" min="2" max="8" value="6" step="1"><b id="arena-count">6</b></label>
       </div>
 
       <div id="snakes" class="snakes"></div>
@@ -95,6 +97,6 @@
     <a href="https://github.com/LambdaAK/SnakeDQN">Source on GitHub</a>
   </footer>
 
-  <script type="module" src="app.js?v=4"></script>
+  <script type="module" src="app.js?v=6"></script>
 </body>
 </html>

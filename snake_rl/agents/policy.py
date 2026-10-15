@@ -6,7 +6,7 @@ import numpy as np
 import torch
 
 from snake_rl.agents.model import PolicyNet, masked_logits
-from snake_rl.env.observations import build_observations
+from snake_rl.env.observations import build_observations, build_window_observations
 from snake_rl.env.rules import GameState, action_mask
 
 
@@ -21,7 +21,11 @@ class NeuralPolicy:
 
     @torch.no_grad()
     def __call__(self, state: GameState, snake: int) -> np.ndarray:
-        obs = torch.from_numpy(build_observations(state)[:, snake]).to(self.device)
+        if self.model.window:
+            obs = build_window_observations(state, self.model.window)[:, snake]
+        else:
+            obs = build_observations(state)[:, snake]
+        obs = torch.from_numpy(obs).to(self.device)
         mask = torch.from_numpy(action_mask(state)[:, snake]).to(self.device)
         logits, _ = self.model(obs)
         logits = masked_logits(logits, mask).cpu()

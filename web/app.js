@@ -1,13 +1,22 @@
-import { actionMask, DIRECTIONS, greedyAction, newGame, NUM_CHANNELS, observation, step } from "./rules.js?v=4";
+import { actionMask, DIRECTIONS, greedyAction, newGame, NUM_CHANNELS, observation, step, windowObservation } from "./rules.js?v=6";
 
-const BOARD = 11;
-const COLORS = ["#f59e0b", "#38bdf8"];
+const COLORS = ["#f59e0b", "#38bdf8", "#a78bfa", "#34d399", "#f472b6", "#facc15", "#fb7185", "#22d3ee"];
+const COLOR_NAMES = ["Orange", "Blue", "Violet", "Green", "Pink", "Yellow", "Coral", "Cyan"];
+// Two networks: the 1v1 duel network sees the whole 11x11 board; the arena network sees a
+// 17x17 window around its own head, so it plays on a large board with many snakes.
+const MODELS = { duel: { url: "model.onnx", window: 0 }, arena: { url: "model_arena.onnx", window: 17 } };
+const sessions = {};
 const ARROWS = ["↑", "↓", "←", "→"];
 const MODES = {
-  watch: { names: ["Orange AI", "Blue AI"], controllers: ["ai", "ai"] },
-  play: { names: ["AI", "You"], controllers: ["ai", "human"] },
-  bot: { names: ["AI", "Greedy bot"], controllers: ["ai", "greedy"] },
+  watch: { board: 11, model: "duel", names: ["Orange AI", "Blue AI"], controllers: ["ai", "ai"] },
+  play: { board: 11, model: "duel", names: ["AI", "You"], controllers: ["ai", "human"] },
+  bot: { board: 11, model: "duel", names: ["AI", "Greedy bot"], controllers: ["ai", "greedy"] },
+  arena: { board: 19, model: "arena" },
 };
+const arenaSize = () => Number($("arena-snakes").value);
+const controllers = () => MODES[mode].controllers ?? Array(arenaSize()).fill("ai");
+const names = () => MODES[mode].names ?? COLOR_NAMES.slice(0, arenaSize());
+const session = () => sessions[MODES[mode].model];
 const KEYS = { ArrowUp: 0, KeyW: 0, ArrowDown: 1, KeyS: 1, ArrowLeft: 2, KeyA: 2, ArrowRight: 3, KeyD: 3 };
 const OPPOSITE = [1, 0, 3, 2];
 
@@ -16,7 +25,6 @@ const canvas = $("board");
 const ctx = canvas.getContext("2d");
 const overlay = $("overlay");
 
-let session = null;
 let mode = "watch";
 let game = null;
 let prev = null; // state before the latest turn, for animating between turns
@@ -30,7 +38,7 @@ let humanQueue = [];
 let brain = { probs: null, value: null, chosen: -1 };
 let aiPlan = null; // AI moves for the current state, decided while the last move animates
 let planToken = 0;
-const tally = { watch: [0, 0, 0], play: [0, 0, 0], bot: [0, 0, 0] };
+const tally = { watch: [0, 0, 0], play: [0, 0, 0], bot: [0, 0, 0], arena: Array(9).fill(0) };
 
 if (new URLSearchParams(location.search).has("embed")) document.body.classList.add("embed");
 
@@ -41,11 +49,12 @@ if (new URLSearchParams(location.search).has("embed")) document.body.classList.a
 
 function startGame() {
   clearTimeout(restartTimer);
-  game = newGame(BOARD, 2);
+  const n = controllers().length;
+  game = newGame(MODES[mode].board, n, Math.random, 100, mode === "arena" ? n : 1);
   prev = structuredClone(game);
   brain = { probs: null, value: null, chosen: -1 };
   humanQueue = [];
-  waitingForHuman = MODES[mode].controllers.includes("human");
+  waitingForHuman = controllers().includes("human");
   $("dpad").hidden = mode !== "play";
   if (waitingForHuman) {
     showOverlay("Press an arrow key, or click where you want to go", "Your snake (blue) keeps moving; steer with arrows, WASD, clicks or swipes");
@@ -66,20 +75,22 @@ function planNext() {
 }
 
 async function decideAI(state) {
-  const actions = [0, 0];
   let decided = null;
-  const controllers = MODES[mode].controllers;
-  const aiSnakes = controllers.map((c, i) => (c === "ai" && state.snakes[i].alive ? i : -1)).filter((i) => i >= 0);
-  if (aiSnakes.length && session) {
-    const plane = NUM_CHANNELS * BOARD * BOARD;
+  const actions = Array(state.snakes.length).fill(0);
+  const net = session();
+  const { window } = MODELS[MODES[mode].model];
+  const aiSnakes = controllers().map((c, i) => (c === "ai" && state.snakes[i].alive ? i : -1)).filter((i) => i >= 0);
+  if (aiSnakes.length && net) {
+    const [ch, size] = window ? [NUM_CHANNELS + 1, window] : [NUM_CHANNELS, state.boardSize];
+    const plane = ch * size * size;
     const data = new Float32Array(aiSnakes.length * plane);
-    aiSnakes.forEach((i, j) => data.set(observation(state, i), j * plane));
-    const out = await session.run({ obs: new ort.Tensor("float32", data, [aiSnakes.length, NUM_CHANNELS, BOARD, BOARD]) });
+    aiSnakes.forEach((i, j) => data.set(window ? windowObservation(state, i, window) : observation(state, i), j * plane));
+    const out = await net.run({ obs: new ort.Tensor("float32", data, [aiSnakes.length, ch, size, size]) });
     aiSnakes.forEach((i, j) => {
       const probs = maskedSoftmax(Array.from(out.logits.data.slice(j * 4, j * 4 + 4)), actionMask(state, i));
-      // Two copies of one deterministic network mirror each other from symmetric starts,
-      // so AI-vs-AI samples from the policy (as in training); other modes play greedily.
-      actions[i] = mode === "watch" ? sample(probs) : probs.indexOf(Math.max(...probs));
+      // Copies of one deterministic network mirror each other from symmetric starts, so
+      // all-AI modes sample from the policy (as in training); other modes play greedily.
+      actions[i] = mode === "watch" || mode === "arena" ? sample(probs) : probs.indexOf(Math.max(...probs));
       if (i === 0) decided = { probs, value: out.value.data[j], chosen: actions[i] };
     });
   }
@@ -87,11 +98,11 @@ async function decideAI(state) {
 }
 
 function advance(now) {
-  if (!session || paused || waitingForHuman || game.over || !aiPlan) return;
+  if (!session() || paused || waitingForHuman || game.over || !aiPlan) return;
   if (now - lastTick < tickDelay) return;
   const actions = aiPlan.actions.slice();
   if (aiPlan.brain) brain = aiPlan.brain;
-  MODES[mode].controllers.forEach((c, i) => {
+  controllers().forEach((c, i) => {
     if (!game.snakes[i].alive) return;
     if (c === "greedy") actions[i] = greedyAction(game, i);
     if (c === "human") actions[i] = humanAction(i); // read at the last moment: most responsive
@@ -141,13 +152,13 @@ function humanAction(i) {
 
 function onGameOver() {
   const w = game.winner;
-  const names = MODES[mode].names;
   const t = tally[mode];
-  if (w === -1) t[2]++; else t[w]++;
+  const drawSlot = mode === "arena" ? 8 : 2;
+  if (w === -1) t[drawSlot]++; else t[w]++;
   let title;
-  if (w === -1) title = "Draw: both snakes went down";
+  if (w === -1) title = mode === "arena" ? "Draw: the last snakes went down together" : "Draw: both snakes went down";
   else if (mode === "play") title = w === 1 ? "You win!" : "The AI wins";
-  else title = `${names[w]} wins`;
+  else title = `${names()[w]} wins`;
   if (mode === "play") {
     showOverlay(title, `Turn ${game.turn} · press a direction to play again`);
     waitForReplay = true;
@@ -192,22 +203,22 @@ function resizeCanvas() {
 // snake slides from its previous cells (`prev`) to its current ones (`game`) by t in [0, 1].
 function render(t) {
   if (!game) return;
-  const W = canvas.width, cell = W / BOARD;
+  const B = game.boardSize, W = canvas.width, cell = W / B;
   ctx.clearRect(0, 0, W, W);
-  for (let r = 0; r < BOARD; r++) {
-    for (let c = 0; c < BOARD; c++) {
+  for (let r = 0; r < B; r++) {
+    for (let c = 0; c < B; c++) {
       ctx.fillStyle = (r + c) % 2 ? "#10172b" : "#0e1426";
       ctx.fillRect(c * cell, r * cell, cell, cell);
     }
   }
-  for (let i = 0; i < BOARD * BOARD; i++) {
+  for (let i = 0; i < B * B; i++) {
     const now = game.food[i], before = prev.food[i];
     if (!now && !before) continue;
     let scale = 1;
     if (now && !before) scale = easeOutBack(Math.min(1, t * 1.4)); // new food pops in
     if (!now && before) scale = t < 0.55 ? 1 : Math.max(0, 1 - (t - 0.55) / 0.3); // eaten
     if (scale <= 0) continue;
-    const r = Math.floor(i / BOARD), c = i % BOARD;
+    const r = Math.floor(i / B), c = i % B;
     ctx.save();
     ctx.shadowColor = "#f43f5e";
     ctx.shadowBlur = cell * 0.5;
@@ -217,7 +228,7 @@ function render(t) {
     ctx.fill();
     ctx.restore();
   }
-  game.snakes.forEach((snake, i) => drawSnake(prev.snakes[i], snake, COLORS[i], cell, t));
+  game.snakes.forEach((snake, i) => drawSnake(prev.snakes[i], snake, COLORS[i % COLORS.length], cell, t));
 }
 
 const lerp = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
@@ -310,16 +321,25 @@ function hideOverlay() { overlay.hidden = true; }
 // ---------- side panel ----------
 
 function updatePanel() {
-  const names = MODES[mode].names;
-  $("snakes").innerHTML = game.snakes.map((s, i) => `
-    <div class="snake-card ${s.alive ? "" : "dead"}">
-      <span class="dot" style="background:${COLORS[i]}"></span>
+  const label = names();
+  // In the arena the cards are a live leaderboard: alive first, then by length.
+  const order = game.snakes.map((_, i) => i);
+  if (mode === "arena") {
+    order.sort((a, b) => (game.snakes[b].alive - game.snakes[a].alive)
+      || (game.snakes[b].body.length - game.snakes[a].body.length));
+  }
+  $("snakes").classList.toggle("compact", game.snakes.length > 2);
+  $("snakes").innerHTML = order.map((i) => {
+    const s = game.snakes[i], color = COLORS[i % COLORS.length];
+    return `<div class="snake-card ${s.alive ? "" : "dead"}">
+      <span class="dot" style="background:${color}"></span>
       <div>
-        <div class="name">${names[i]}</div>
-        <div class="health"><div style="width:${s.alive ? (100 * s.health) / game.maxHealth : 0}%;background:${COLORS[i]}"></div></div>
+        <div class="name">${label[i]}</div>
+        <div class="health"><div style="width:${s.alive ? (100 * s.health) / game.maxHealth : 0}%;background:${color}"></div></div>
       </div>
       <span class="meta">length ${s.body.length}${s.alive ? "" : " · out"}</span>
-    </div>`).join("");
+    </div>`;
+  }).join("");
 
   $("probs").innerHTML = ARROWS.map((arrow, a) => {
     const p = brain.probs ? brain.probs[a] : 0;
@@ -337,10 +357,16 @@ function updatePanel() {
     bar.style.width = `${50 * Math.abs(v)}%`;
     $("value-text").textContent = (v >= 0 ? "+" : "") + v.toFixed(2);
   }
-  document.querySelector(".ai-name").textContent = mode === "watch" ? "orange" : "AI's";
+  document.querySelector(".ai-name").textContent =
+    mode === "watch" || mode === "arena" ? "orange" : "AI's";
 
   const t = tally[mode];
-  $("tally").textContent = `This session: ${names[0]} ${t[0]} · ${names[1]} ${t[1]} · draws ${t[2]}`;
+  if (mode === "arena") {
+    const wins = label.map((n, i) => `${n} ${t[i]}`).join(" · ");
+    $("tally").textContent = `Wins this session: ${wins} · draws ${t[8]}`;
+  } else {
+    $("tally").textContent = `This session: ${label[0]} ${t[0]} · ${label[1]} ${t[1]} · draws ${t[2]}`;
+  }
 }
 
 // ---------- training stats ----------
@@ -395,12 +421,19 @@ function drawChart(points) {
 
 // ---------- wiring ----------
 
-document.querySelectorAll(".modes button").forEach((btn) => btn.addEventListener("click", () => {
+document.querySelectorAll(".modes button").forEach((btn) => btn.addEventListener("click", async () => {
   document.querySelectorAll(".modes button").forEach((b) => b.classList.toggle("active", b === btn));
   mode = btn.dataset.mode;
   waitForReplay = false;
+  $("arena-controls").hidden = mode !== "arena";
+  if (!(await loadModel(MODES[mode].model))) return;
   startGame();
+  resizeCanvas();
 }));
+$("arena-snakes").addEventListener("input", () => {
+  $("arena-count").textContent = arenaSize();
+  if (mode === "arena") startGame();
+});
 $("restart").addEventListener("click", () => { waitForReplay = false; startGame(); });
 $("pause").addEventListener("click", () => {
   paused = !paused;
@@ -428,7 +461,7 @@ canvas.addEventListener("touchend", (e) => {
 canvas.addEventListener("click", (e) => {
   if (mode !== "play" || !game) return;
   const rect = canvas.getBoundingClientRect();
-  const cell = rect.width / BOARD;
+  const cell = rect.width / game.boardSize;
   const [hr, hc] = game.snakes[1].body[0];
   const dx = (e.clientX - rect.left) / cell - (hc + 0.5);
   const dy = (e.clientY - rect.top) / cell - (hr + 0.5);
@@ -438,23 +471,29 @@ canvas.addEventListener("click", (e) => {
 $("speed").addEventListener("input", () => { tickDelay = 440 - Number($("speed").value); });
 window.addEventListener("resize", resizeCanvas);
 
+// Networks load on first use, so the arena model doesn't slow down the first page load.
+async function loadModel(name) {
+  if (sessions[name]) return true;
+  showOverlay(name === "arena" ? "Loading the arena network…" : "Loading neural network…");
+  try {
+    sessions[name] = await ort.InferenceSession.create(MODELS[name].url);
+    return true;
+  } catch (err) {
+    showOverlay("Couldn't load the neural network", String(err));
+    return false;
+  }
+}
+
 async function init() {
-  game = newGame(BOARD, 2);
+  game = newGame(MODES[mode].board, 2);
   prev = structuredClone(game);
   resizeCanvas();
   requestAnimationFrame(frame);
   updatePanel();
-  showOverlay("Loading neural network…");
   loadStats();
-  try {
-    ort.env.wasm.numThreads = 1;
-    ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/";
-    session = await ort.InferenceSession.create("model.onnx");
-  } catch (err) {
-    showOverlay("Couldn't load the neural network", String(err));
-    return;
-  }
-  startGame();
+  ort.env.wasm.numThreads = 1;
+  ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/";
+  if (await loadModel("duel")) startGame();
 }
 
 init();

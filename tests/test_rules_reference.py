@@ -71,3 +71,18 @@ def test_starvation_matches_reference(board_size, num_snakes):
             ref_step(game, actions[env], spawn_u[env])
             assert_game_equal(state, env, game)
     assert starved > 0, "no snake starved; this test does not exercise starvation"
+
+
+def test_arena_settings_match_reference():
+    """Large board, many snakes, several food guaranteed (the browser's arena mode)."""
+    rng = np.random.default_rng(99)
+    state = GameState.empty(16, 8, 19, min_food=6)
+    for _ in range(200):
+        reset_games(state, state.over, rng)
+        games = [from_state(state, env) for env in range(state.num_envs)]
+        actions = random_actions(state, rng)
+        spawn_u = rng.random((state.num_envs, 2))
+        step_games(state, actions, spawn_u)
+        for env, game in enumerate(games):
+            ref_step(game, actions[env], spawn_u[env])
+            assert_game_equal(state, env, game)

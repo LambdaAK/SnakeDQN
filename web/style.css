@@ -121,3 +121,10 @@ footer a { color: var(--blue); }
 
 body.embed .hero, body.embed .explain, body.embed footer { display: none; }
 body.embed .arena { padding-top: 16px; }
+
+.speed[hidden] { display: none; }
+#arena-count { min-width: 1ch; color: var(--text); }
+.snakes.compact { gap: 4px; }
+.snakes.compact .snake-card { padding: 6px 10px; }
+.snakes.compact .health { margin-top: 4px; }
+#arena-controls { flex-basis: 100%; }

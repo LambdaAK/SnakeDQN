@@ -76,3 +76,22 @@ def test_subset_of_envs():
     reset_games(state, np.ones(8, bool), np.random.default_rng(3))
     full = build_observations(state)
     assert np.array_equal(build_observations(state, np.array([2, 5])), full[[2, 5]])
+
+
+def test_window_observation_centres_on_head_and_marks_walls():
+    from snake_rl.env.observations import WALL, build_window_observations
+
+    state = two_snake_state()  # 7x7, snake 0 head at (3, 3), snake 1 head at (1, 1)
+    full = build_observations(state)
+    win = build_window_observations(state, 9)
+    assert win.shape == (1, 2, NUM_CHANNELS + 1, 9, 9)
+    # Snake 0's head (3, 3) sits at the window centre (4, 4): offset +1 in both axes.
+    assert win[0, 0, OWN_HEAD, 4, 4] == 1
+    assert np.array_equal(win[0, 0, :NUM_CHANNELS, 1:8, 1:8], full[0, 0])
+    assert win[0, 0, WALL, 0].all() and win[0, 0, WALL, :, 8].all()
+    assert not win[0, 0, WALL, 1:8, 1:8].any()
+    # Snake 1's head (1, 1): window rows/cols 0-2 lie off the board.
+    assert win[0, 1, OWN_HEAD, 4, 4] == 1
+    assert win[0, 1, WALL, :3].all() and win[0, 1, WALL, :, :3].all()
+    assert not win[0, 1, WALL, 3:, 3:].any()
+    assert np.array_equal(win[0, 1, :NUM_CHANNELS, 3:, 3:], full[0, 1, :, :6, :6])

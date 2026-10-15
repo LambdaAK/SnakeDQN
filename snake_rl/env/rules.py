@@ -31,6 +31,7 @@ class GameState:
     turn: np.ndarray    # int32 (N,)
     over: np.ndarray    # bool  (N,) game has ended and awaits a reset
     max_health: int
+    min_food: int = MIN_FOOD  # below this, one food spawns per turn until it is reached
 
     @property
     def num_envs(self) -> int:
@@ -46,7 +47,7 @@ class GameState:
 
     @classmethod
     def empty(cls, num_envs: int, num_snakes: int, board_size: int,
-              max_health: int = 100) -> GameState:
+              max_health: int = 100, min_food: int = MIN_FOOD) -> GameState:
         if num_envs < 1:
             raise ValueError(f"num_envs must be >= 1, got {num_envs}")
         if not 1 <= num_snakes <= MAX_SNAKES:
@@ -55,6 +56,8 @@ class GameState:
             raise ValueError(f"board_size must be >= {MIN_BOARD_SIZE}, got {board_size}")
         if max_health < 1:
             raise ValueError(f"max_health must be >= 1, got {max_health}")
+        if min_food < 0:
+            raise ValueError(f"min_food must be >= 0, got {min_food}")
         n, s, b = num_envs, num_snakes, board_size
         return cls(
             body=np.zeros((n, s, b * b + 1, 2), np.int16),
@@ -65,6 +68,7 @@ class GameState:
             turn=np.zeros(n, np.int32),
             over=np.ones(n, bool),
             max_health=max_health,
+            min_food=min_food,
         )
 
     @classmethod
@@ -94,6 +98,7 @@ class GameState:
             turn=self.turn[envs].copy(),
             over=self.over[envs].copy(),
             max_health=self.max_health,
+            min_food=self.min_food,
         )
 
 
@@ -190,7 +195,7 @@ def _spawn_food(state: GameState, active: np.ndarray, spawn_u: np.ndarray,
     n, b = state.num_envs, state.board_size
     flat_food = state.food.reshape(n, b * b)
     count = flat_food.sum(axis=1)
-    need = active & ((count < MIN_FOOD) | (spawn_u[:, 0] < SPAWN_CHANCE))
+    need = active & ((count < state.min_food) | (spawn_u[:, 0] < SPAWN_CHANCE))
     idx = np.flatnonzero(need)
     if idx.size == 0:
         return

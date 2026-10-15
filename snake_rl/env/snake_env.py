@@ -12,8 +12,8 @@ from snake_rl.env.rules import GameState, action_mask, reset_games, step_games
 class SnakeEnv:
     def __init__(self, num_envs: int, num_snakes: int, board_size: int = 11,
                  reward: str | None = None, max_health: int = 100,
-                 seed: int | None = None):
-        self.state = GameState.empty(num_envs, num_snakes, board_size, max_health)
+                 seed: int | None = None, min_food: int = 1):
+        self.state = GameState.empty(num_envs, num_snakes, board_size, max_health, min_food)
         self.reward_fn = get_reward(reward or ("winloss" if num_snakes > 1 else "food"))
         self.rng = np.random.default_rng(seed)
         self._needs_reset = True
