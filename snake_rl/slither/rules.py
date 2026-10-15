@@ -257,7 +257,7 @@ def _head_on(hx, hy, radius, alive):
     return out
 
 
-def near_pairs(pe, px, py, heads, live, reach):
+def _near_pairs_dense(pe, px, py, heads, live, reach):
     """Candidate (point index, head slot) pairs: live heads of arena pe[q] within `reach`
     of point q. Callers recheck their exact predicate, so this only has to be conservative.
     Dense version: every point against every head of its arena, in blocks."""
@@ -273,6 +273,46 @@ def near_pairs(pe, px, py, heads, live, reach):
     if not qs:
         return np.zeros(0, np.int64), np.zeros(0, np.int64)
     return np.concatenate(qs), np.concatenate(ks)
+
+
+def _near_pairs_grid(pe, px, py, heads, live, reach):
+    """Same pairs as _near_pairs_dense, found through a uniform grid with cells of side
+    `reach`: a point can only be within `reach` of heads in its own or the 8 neighbouring
+    cells. Returned in (point, slot) order, like the dense version."""
+    empty = (np.zeros(0, np.int64), np.zeros(0, np.int64))
+    if pe.size == 0 or not live.any():
+        return empty
+    he, hk = np.nonzero(live)
+    hx, hy = heads[he, hk, 0], heads[he, hk, 1]
+    lo_x, lo_y = min(px.min(), hx.min()), min(py.min(), hy.min())
+    gx = np.floor((px - lo_x) / reach).astype(np.int64) + 1
+    gy = np.floor((py - lo_y) / reach).astype(np.int64) + 1
+    hgx = np.floor((hx - lo_x) / reach).astype(np.int64) + 1
+    hgy = np.floor((hy - lo_y) / reach).astype(np.int64) + 1
+    width = int(max(gx.max(), gy.max(), hgx.max(), hgy.max())) + 2
+    key = (pe.astype(np.int64) * width + gx) * width + gy
+    order = np.argsort(key, kind="stable")
+    sorted_key = key[order]
+    qs, ks = [], []
+    for ox in (-1, 0, 1):
+        for oy in (-1, 0, 1):
+            hkey = (he * width + hgx + ox) * width + hgy + oy
+            start = np.searchsorted(sorted_key, hkey, "left")
+            count = np.searchsorted(sorted_key, hkey, "right") - start
+            rep = np.repeat(np.arange(he.size), count)
+            offset = np.arange(rep.size) - np.repeat(np.cumsum(count) - count, count)
+            qs.append(order[start[rep] + offset])
+            ks.append(hk[rep])
+    q, k = np.concatenate(qs), np.concatenate(ks)
+    dx = px[q] - heads[pe[q], k, 0]
+    dy = py[q] - heads[pe[q], k, 1]
+    keep = dx * dx + dy * dy < reach * reach
+    q, k = q[keep], k[keep]
+    o = np.lexsort((k, q))
+    return q[o], k[o]
+
+
+near_pairs = _near_pairs_grid
 
 
 def _body_hits(state, heads, radius, alive):
