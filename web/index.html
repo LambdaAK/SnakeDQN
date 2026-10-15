@@ -8,8 +8,12 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=13">
-  <link rel="stylesheet" href="snake-demo.css?v=13">
+  <link rel="stylesheet" href="style.css?v=17">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
+    onload="renderMathInElement(document.querySelector('.how'), {delimiters: [{left: '$$', right: '$$', display: true}, {left: '\\(', right: '\\)', display: false}]})"></script>
+  <link rel="stylesheet" href="snake-demo.css?v=17">
   <script>
     // Light by default; dark only if the visitor chose it with the toggle.
     try {
@@ -36,26 +40,32 @@
 
     <section id="demo" aria-label="Live game"></section>
 
-    <section class="block">
-      <h2 class="t-group">Results</h2>
-      <div id="results" class="stats"></div>
-      <div id="chart" class="chart"></div>
-    </section>
-
-    <section class="block">
+    <section class="how">
       <h2 class="t-group">How it works</h2>
-      <ul class="how t-desc">
-        <li><span class="t-title">Simulator.</span> Battlesnake rules in vectorised NumPy, 200k turns per second.</li>
-        <li><span class="t-title">Training.</span> PPO self-play, rewarded only for winning.</li>
-        <li><span class="t-title">Browser.</span> ONNX Runtime Web, on a JavaScript port of the rules.</li>
-      </ul>
+
+      <p><span class="t-title">The game.</span> Each turn every snake sees the board \(s_t\) and
+        picks a move \(a_t \in \{\uparrow, \downarrow, \leftarrow, \rightarrow\}\). The only
+        reward is the outcome: \(r = +1\) for winning, \(-1\) for dying.</p>
+
+      <p><span class="t-title">The network.</span> One small CNN reads 8 planes centred on its own
+        snake (bodies, heads, food, health) and outputs a policy and a value:
+        $$\pi_\theta(a \mid s), \qquad V_\theta(s) \approx \mathbb{E}\Big[\textstyle\sum_k \gamma^k r_{t+k}\Big].$$</p>
+
+      <p><span class="t-title">Learning.</span> PPO nudges the policy toward moves that turned out
+        better than expected, but never too far in one update:
+        $$L(\theta) = \mathbb{E}_t\Big[\min\big(\rho_t \hat A_t,\ \operatorname{clip}(\rho_t, 1-\epsilon, 1+\epsilon)\, \hat A_t\big)\Big],
+        \qquad \rho_t = \frac{\pi_\theta(a_t \mid s_t)}{\pi_{\theta_\text{old}}(a_t \mid s_t)},$$
+        where the advantage \(\hat A_t = \sum_l (\gamma\lambda)^l \delta_{t+l}\), with
+        \(\delta_t = r_t + \gamma V(s_{t+1}) - V(s_t)\), says how much better a move was than the
+        network expected.</p>
+
+      <p><span class="t-title">Self-play.</span> Every snake is the same network, so it learns
+        by playing copies of itself (and older versions of itself). After 2.5 hours on a laptop
+        it beats the best hand-written bot in 91% of games.</p>
     </section>
   </main>
 
-  <footer class="wrap t-meta foot">
-    <a class="ink" href="https://github.com/LambdaAK/SnakeDQN">Source</a> · Alex Kozik
-  </footer>
 
-  <script type="module" src="page.js?v=13"></script>
+  <script type="module" src="page.js?v=17"></script>
 </body>
 </html>

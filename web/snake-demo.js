@@ -14,7 +14,6 @@ const ORT_CDN = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dis
 
 const COLORS = ["#f59e0b", "#38bdf8", "#a78bfa", "#34d399", "#f472b6", "#facc15", "#fb7185", "#22d3ee"];
 const COLOR_NAMES = ["Orange", "Blue", "Violet", "Green", "Pink", "Yellow", "Coral", "Cyan"];
-const ARROWS = ["↑", "↓", "←", "→"];
 const KEYS = { ArrowUp: 0, KeyW: 0, ArrowDown: 1, KeyS: 1, ArrowLeft: 2, KeyA: 2, ArrowRight: 3, KeyD: 3 };
 const OPPOSITE = [1, 0, 3, 2];
 const SPEEDS = [[1, 180], [2, 100], [0.5, 320]]; // [label multiplier, ms per move]
@@ -42,9 +41,6 @@ const TEMPLATE = `
     </div>
     <div class="sd-side">
       <div><p class="sd-lbl">Snakes</p><ul class="sd-snakes" data-sd="snakes"></ul></div>
-      <div><p class="sd-lbl"><span data-sd="ai-name">Orange</span> · next move</p><ul class="sd-probs" data-sd="probs"></ul></div>
-      <div><p class="sd-lbl">Confidence</p>
-        <div class="sd-value"><div class="sd-meter"><div data-sd="value-bar"></div></div><span data-sd="value-text">–</span></div></div>
       <div class="sd-pills">
         <button type="button" data-sd="restart">Restart</button>
         <button type="button" data-sd="pause">Pause</button>
@@ -55,7 +51,6 @@ const TEMPLATE = `
         <span data-sd="arena-count">6 snakes</span>
         <button type="button" data-sd="more" aria-label="More snakes">+</button>
       </div>
-      <p class="sd-meta" data-sd="tally"></p>
     </div>
   </div>
   <div class="sd-dpad" data-sd="dpad" hidden>
@@ -114,10 +109,8 @@ export function mountSnakeDemo(root, options = {}) {
   let waitingForHuman = false;
   let waitForReplay = false;
   let humanQueue = [];
-  let brain = { probs: null, value: null, chosen: -1 };
   let aiPlan = null; // AI moves for the current state, decided while the last move animates
   let planToken = 0;
-  const tally = { watch: [0, 0, 0], play: [0, 0, 0], bot: [0, 0, 0], arena: Array(9).fill(0) };
 
   const controllers = () => MODES[mode].controllers ?? Array(arenaN).fill("ai");
   const names = () => MODES[mode].names ?? COLOR_NAMES.slice(0, arenaN);
@@ -140,7 +133,6 @@ export function mountSnakeDemo(root, options = {}) {
     const n = controllers().length;
     game = newGame(MODES[mode].board, n, Math.random, 100, mode === "arena" ? n : 1);
     prev = structuredClone(game);
-    brain = { probs: null, value: null, chosen: -1 };
     humanQueue = [];
     waitingForHuman = controllers().includes("human");
     $("dpad").hidden = mode !== "play";
@@ -160,7 +152,6 @@ export function mountSnakeDemo(root, options = {}) {
   }
 
   async function decideAI(state) {
-    let decided = null;
     const actions = Array(state.snakes.length).fill(0);
     const net = session();
     const { window } = MODELS[MODES[mode].model];
@@ -176,17 +167,15 @@ export function mountSnakeDemo(root, options = {}) {
         // Copies of one deterministic network mirror each other from symmetric starts, so
         // all-AI modes sample from the policy (as in training); other modes play greedily.
         actions[i] = mode === "watch" || mode === "arena" ? sample(probs) : probs.indexOf(Math.max(...probs));
-        if (i === 0) decided = { probs, value: out.value.data[j], chosen: actions[i] };
       });
     }
-    return { actions, brain: decided };
+    return { actions };
   }
 
   function advance(now) {
     if (!session() || paused || !visible || waitingForHuman || game.over || !aiPlan) return;
     if (now - lastTick < tickDelay) return;
     const actions = aiPlan.actions.slice();
-    if (aiPlan.brain) brain = aiPlan.brain;
     controllers().forEach((c, i) => {
       if (!game.snakes[i].alive) return;
       if (c === "greedy") actions[i] = greedyAction(game, i);
@@ -213,8 +202,6 @@ export function mountSnakeDemo(root, options = {}) {
 
   function onGameOver() {
     const w = game.winner;
-    const t = tally[mode];
-    if (w === -1) t[mode === "arena" ? 8 : 2]++; else t[w]++;
     let title;
     if (w === -1) title = "Draw";
     else if (mode === "play") title = w === 1 ? "You win!" : "The AI wins";
@@ -360,30 +347,6 @@ export function mountSnakeDemo(root, options = {}) {
       return `<li class="${s.alive ? "" : "sd-dead"}"><span class="sd-dot" style="background:${COLORS[i % COLORS.length]}"></span>
         <span>${label[i]}</span><span class="sd-len">${s.body.length}</span></li>`;
     }).join("");
-
-    $("probs").innerHTML = ARROWS.map((arrow, a) => {
-      const p = brain.probs ? brain.probs[a] : 0;
-      return `<li class="${a === brain.chosen ? "sd-chosen" : ""}">
-        <span>${arrow}</span><div class="sd-track"><div style="width:${(100 * p).toFixed(1)}%"></div></div>
-        <span class="sd-pct">${brain.probs ? Math.round(100 * p) + "%" : "–"}</span></li>`;
-    }).join("");
-
-    const bar = $("value-bar");
-    if (brain.value === null) {
-      bar.style.width = "0";
-      $("value-text").textContent = "–";
-    } else {
-      const v = Math.max(-1, Math.min(1, brain.value));
-      bar.style.left = v >= 0 ? "50%" : `${50 + 50 * v}%`;
-      bar.style.width = `${50 * Math.abs(v)}%`;
-      $("value-text").textContent = (v >= 0 ? "+" : "") + v.toFixed(2);
-    }
-    $("ai-name").textContent = mode === "watch" || mode === "arena" ? "Orange" : "AI";
-
-    const t = tally[mode];
-    $("tally").textContent = mode === "arena"
-      ? `Wins: ${label.map((n, i) => `${n} ${t[i]}`).join(" · ")}`
-      : `Wins: ${label[0]} ${t[0]} · ${label[1]} ${t[1]}`;
   }
 
   // ---------- networks ----------

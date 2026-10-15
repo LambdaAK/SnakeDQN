@@ -63,26 +63,14 @@
 
 .snake-demo .sd-side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .snake-demo .sd-lbl { margin-bottom: 6px; font-size: 11px; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; color: var(--sd-faint); }
-.snake-demo .sd-snakes, .snake-demo .sd-probs { display: grid; gap: 4px; }
+.snake-demo .sd-snakes { display: grid; gap: 4px; }
 .snake-demo .sd-snakes li { display: grid; grid-template-columns: 8px 1fr auto; gap: 8px; align-items: center; }
 .snake-demo .sd-snakes li.sd-dead { opacity: .4; }
 .snake-demo .sd-dot { width: 8px; height: 8px; border-radius: 999px; }
 .snake-demo .sd-len { font-family: var(--sd-mono); font-size: 12px; color: var(--sd-muted); }
-.snake-demo .sd-probs li { display: grid; grid-template-columns: 14px 1fr 30px; gap: 8px; align-items: center;
-  font-family: var(--sd-mono); font-size: 12px; color: var(--sd-muted); }
-.snake-demo .sd-pct { text-align: right; }
-.snake-demo .sd-track, .snake-demo .sd-meter { height: 6px; border-radius: 999px; background: var(--sd-line); overflow: hidden; position: relative; }
-.snake-demo .sd-track div { height: 100%; border-radius: 999px; background: var(--sd-faint); transition: width .1s linear; }
-.snake-demo .sd-probs li.sd-chosen { color: var(--sd-fg); }
-.snake-demo .sd-probs li.sd-chosen .sd-track div { background: var(--sd-accent); }
-.snake-demo .sd-value { display: grid; grid-template-columns: 1fr 38px; gap: 8px; align-items: center; }
-.snake-demo .sd-meter::after { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--sd-faint); }
-.snake-demo [data-sd="value-bar"] { position: absolute; top: 0; bottom: 0; background: var(--sd-accent); border-radius: 999px; }
-.snake-demo [data-sd="value-text"] { font-family: var(--sd-mono); font-size: 12px; text-align: right; color: var(--sd-muted); }
 .snake-demo .sd-pills { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .snake-demo .sd-stepper span { font-size: 12px; color: var(--sd-muted); min-width: 62px; text-align: center; }
 .snake-demo .sd-stepper button { width: 26px; padding: 4px 0; }
-.snake-demo .sd-meta { font-size: 13px; color: var(--sd-faint); }
 
 .snake-demo .sd-dpad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 14px; }
 .snake-demo .sd-dpad button { border: 1px solid var(--sd-line); background: none; border-radius: 10px; padding: 10px 0; font-size: 18px; color: var(--sd-muted); }

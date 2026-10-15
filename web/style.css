@@ -74,18 +74,11 @@ a { color: inherit; }
 main.wrap { padding-top: 56px; padding-bottom: 72px; }
 .lede { margin: 8px 0 28px; }
 
-/* results and notes */
-.block { margin-top: 48px; }
-.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 16px 24px; margin-bottom: 20px; }
-.stat b { display: block; font-family: var(--font-display); font-size: 26px; font-weight: 500; line-height: 1.1; color: var(--color-fg); }
-.stat span { font-size: 13px; color: var(--color-fg-faint); }
-.chart svg { width: 100%; height: auto; display: block; }
-.chart .grid { stroke: var(--color-line); }
-.chart text { fill: var(--color-fg-faint); font-size: 11px; font-family: var(--font-sans); }
-.legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--color-fg-faint); margin-top: 6px; }
-.legend span::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 999px; margin-right: 6px; background: var(--c); }
-.how { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
-.foot { padding-bottom: 48px; }
+/* how it works */
+.how { margin-top: 48px; font-size: 14px; line-height: 1.65; color: var(--color-fg-muted); }
+.how p { margin: 0 0 14px; }
+.how .katex { color: var(--color-fg); font-size: 1.05em; }
+.how .katex-display { margin: 10px 0; overflow-x: auto; overflow-y: hidden; }
 
-body.embed .top, body.embed h1, body.embed .lede, body.embed .block, body.embed .foot { display: none; }
+body.embed .top, body.embed h1, body.embed .lede, body.embed .how { display: none; }
 body.embed main.wrap { padding-top: 16px; padding-bottom: 16px; }
