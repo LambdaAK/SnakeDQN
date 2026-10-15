@@ -152,3 +152,125 @@ def from_snapshots(snaps: list[dict], cfg: SlitherConfig | None = None) -> Slith
                 state.food_natural[e, f] = item[3]
                 state.food_active[e, f] = True
     return state
+
+
+@dataclass
+class TickEvents:
+    died: np.ndarray    # bool (N, S) died this tick
+    killer: np.ndarray  # int32 (N, S) slot whose body it hit; -1 for wall/head-on deaths
+    kills: np.ndarray   # int32 (N, S) kills credited this tick
+    eaten: np.ndarray   # float64 (N, S) pellet value eaten this tick
+
+
+def step_tick(state: SlitherState, turn, boost, u) -> TickEvents:
+    """Advance every arena by one physics tick (spec §2 steps 1-3; Task 3 adds 4-7)."""
+    cfg = state.cfg
+    n, s = state.num_envs, state.num_snakes
+    turn, boost, u = _validate(state, turn, boost, u)
+    alive = state.alive.copy()
+
+    # 1. steer
+    state.heading = np.where(alive, state.heading + np.clip(turn, -cfg.max_turn, cfg.max_turn),
+                             state.heading)
+    # 2. boost, move, trim
+    boosting = alive & boost & (state.mass >= cfg.boost_min_mass)
+    state.mass = np.where(boosting, state.mass - cfg.boost_cost, state.mass)
+    state.boost_ticks = np.where(boosting, state.boost_ticks + 1, 0).astype(np.int32)
+    state.boosting = boosting
+    _push(state, alive)
+    _push(state, boosting)
+    pushed = alive.astype(np.int32) + boosting
+    state.length = np.where(alive, np.minimum(state.length + pushed, target_length(state.mass, cfg)),
+                            state.length).astype(np.int32)
+    # 3. deaths
+    radius = body_radius(state.mass, cfg)
+    heads = head_points(state)
+    hx, hy = heads[..., 0], heads[..., 1]
+    died = alive & (np.sqrt(hx * hx + hy * hy) + radius > cfg.arena_radius)
+    head_on = _head_on(hx, hy, radius, alive)
+    first = _body_hits(state, heads, radius, alive)
+    died |= head_on | (first < s)
+    killer = np.where(died & (first < s) & ~head_on, first, -1).astype(np.int32)
+    kills = np.zeros((n, s), np.int32)
+    ke, ki = np.nonzero(killer >= 0)
+    np.add.at(kills, (ke, killer[ke, ki]), 1)
+    state.alive = alive & ~died
+    state.length[died] = 0
+    state.tick += 1
+    return TickEvents(died, killer, kills, np.zeros((n, s)))
+
+
+def _validate(state, turn, boost, u):
+    shape = (state.num_envs, state.num_snakes)
+    turn = np.asarray(turn, np.float64)
+    boost = np.asarray(boost, bool)
+    u = np.asarray(u, np.float64)
+    if turn.shape != shape or boost.shape != shape:
+        raise ValueError(f"turn and boost must have shape {shape}, got {turn.shape} and {boost.shape}")
+    size = u_layout(state.num_snakes, state.cfg)["size"]
+    if u.shape != (state.num_envs, size):
+        raise ValueError(f"u must have shape {(state.num_envs, size)}, got {u.shape}")
+    if not np.isfinite(turn).all():
+        raise ValueError("turn must be finite")
+    return turn, boost, u
+
+
+def _push(state, mask):
+    """Add a point 1 unit ahead of the head, along the heading, for every snake in `mask`."""
+    e, k = np.nonzero(mask)
+    old = state.head[e, k]
+    new = (old + 1) % state.cfg.body_capacity
+    h = state.heading[e, k]
+    state.body[e, k, new, 0] = state.body[e, k, old, 0] + np.cos(h)
+    state.body[e, k, new, 1] = state.body[e, k, old, 1] + np.sin(h)
+    state.head[e, k] = new
+
+
+def _head_on(hx, hy, radius, alive):
+    s = hx.shape[1]
+    out = np.zeros_like(alive)
+    for i in range(s):
+        for j in range(i + 1, s):
+            dx = hx[:, i] - hx[:, j]
+            dy = hy[:, i] - hy[:, j]
+            t = radius[:, i] + radius[:, j]
+            hit = alive[:, i] & alive[:, j] & (dx * dx + dy * dy < t * t)
+            out[:, i] |= hit
+            out[:, j] |= hit
+    return out
+
+
+def near_pairs(pe, px, py, heads, live, reach):
+    """Candidate (point index, head slot) pairs: live heads of arena pe[q] within `reach`
+    of point q. Callers recheck their exact predicate, so this only has to be conservative.
+    Dense version: every point against every head of its arena, in blocks."""
+    qs, ks = [], []
+    r2 = reach * reach
+    for lo in range(0, pe.size, CHUNK):
+        ec = pe[lo:lo + CHUNK]
+        dx = px[lo:lo + CHUNK, None] - heads[ec, :, 0]
+        dy = py[lo:lo + CHUNK, None] - heads[ec, :, 1]
+        q, k = np.nonzero(live[ec] & (dx * dx + dy * dy < r2))
+        qs.append(q + lo)
+        ks.append(k)
+    if not qs:
+        return np.zeros(0, np.int64), np.zeros(0, np.int64)
+    return np.concatenate(qs), np.concatenate(ks)
+
+
+def _body_hits(state, heads, radius, alive):
+    """For each live head, the lowest slot j != i whose body (points 1..) it touches; S if none."""
+    n, s = state.num_envs, state.num_snakes
+    first = np.full((n, s), s, np.int32)
+    lidx = ring_index(state)
+    pe, pj, pp = np.nonzero((lidx >= 1) & (lidx < state.length[..., None]) & alive[..., None])
+    px, py = state.body[pe, pj, pp, 0], state.body[pe, pj, pp, 1]
+    reach = 2.0 * float(radius.max(initial=0.0)) + 1e-6
+    q, i = near_pairs(pe, px, py, heads, alive, reach)
+    e, j = pe[q], pj[q]
+    dx = px[q] - heads[e, i, 0]
+    dy = py[q] - heads[e, i, 1]
+    t = radius[e, i] + radius[e, j]
+    hit = (dx * dx + dy * dy < t * t) & (i != j)
+    np.minimum.at(first, (e[hit], i[hit]), j[hit].astype(np.int32))
+    return first
