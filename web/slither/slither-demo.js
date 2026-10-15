@@ -10,7 +10,7 @@
 
 import { CONFIG, decodeAction, newArena, randomU, respawnSlot, stepTick } from "./rules.js";
 import { actionMask, observe, obsSize } from "./observe.js";
-import { COLORS, NAMES, drawArena } from "./render.js?v=4";
+import { COLORS, NAMES, drawArena } from "./render.js?v=5";
 
 const ORT_VERSION = "1.20.1";
 const ORT_CDN = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/`;
@@ -44,17 +44,16 @@ const TEMPLATE = `
     </div>
   </div>`;
 
-let ortPromise = null;
 function loadOrt(src) {
   if (globalThis.ort) return Promise.resolve(globalThis.ort);
-  ortPromise ??= new Promise((resolve, reject) => {
+  globalThis.__ortLoading ??= new Promise((resolve, reject) => {
     const script = document.createElement("script");
     script.src = src;
     script.onload = () => resolve(globalThis.ort);
-    script.onerror = () => { ortPromise = null; script.remove(); reject(new Error("couldn't load ONNX Runtime")); };
+    script.onerror = () => { globalThis.__ortLoading = null; script.remove(); reject(new Error("couldn't load ONNX Runtime")); };
     document.head.appendChild(script);
   });
-  return ortPromise;
+  return globalThis.__ortLoading;
 }
 
 /**
