@@ -13,7 +13,7 @@
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
     onload="renderMathInElement(document.querySelector('.how'), {delimiters: [{left: '$$', right: '$$', display: true}, {left: '\\(', right: '\\)', display: false}]})"></script>
-  <link rel="stylesheet" href="slither-demo.css?v=3">
+  <link rel="stylesheet" href="slither-demo.css?v=4">
   <script>
     // Light by default; dark only if the visitor chose it with the toggle.
     try {
@@ -46,7 +46,7 @@
       <p><span class="t-title">The game.</span> Snakes steer continuously in a circular arena. Ten
         times a second each one sees \(s_t\) (32 sectors around its head: walls, bodies, heads,
         food, plus its own size) and picks \(a_t\), one of 9 steering angles, with or without
-        boost. The reward is \(r_t = 0.1\,\Delta m_t - \mathbb{1}[\text{died}]\): mass gained,
+        boost. The reward is \(r_t = 0.1\,\Delta m_t - \mathbf{1}[\text{died}]\): mass gained,
         minus 1 for dying.</p>
 
       <p><span class="t-title">The network.</span> A small MLP outputs a policy and a value:
@@ -65,6 +65,6 @@
     </section>
   </main>
 
-  <script type="module" src="page.js?v=3"></script>
+  <script type="module" src="page.js?v=4"></script>
 </body>
 </html>

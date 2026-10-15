@@ -10,7 +10,7 @@
 
 import { CONFIG, decodeAction, newArena, randomU, respawnSlot, stepTick } from "./rules.js";
 import { actionMask, observe, obsSize } from "./observe.js";
-import { COLORS, NAMES, drawArena } from "./render.js?v=3";
+import { COLORS, NAMES, drawArena } from "./render.js?v=4";
 
 const ORT_VERSION = "1.20.1";
 const ORT_CDN = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/`;
@@ -20,7 +20,7 @@ const SNAKES = 10;        // enabled slots; in Play mode slot 0 is you
 const HUMAN = 0;
 const MAX_CATCH_UP = 8;   // physics ticks per advance() call, times the speed
 const SPEEDS = [1, 2, 3, 5];
-const LEAD_TICKS = 2;     // the simulation stays this many ticks ahead of what is drawn
+const LEAD_TICKS = 2;     // ticks (times speed) the simulation stays ahead of what is drawn
 
 const TEMPLATE = `
   <div class="sl-tabs" role="tablist">
@@ -85,7 +85,7 @@ export function mountSlitherDemo(root, options = {}) {
   let theme = {}, dpr = 1, camera = null;
   let game, plan, follow;
   let snaps = [], simTick = 0, rt = 0; // recent per-tick states; ticks simulated; render time (ms of game time)
-  let shown = null, lastPanel = "", speed = 1;
+  let shown = null, lastPanel = "", speed = 1, pendingDeath = null;
   let last = performance.now(), frameNo = 0;
   let pointer = null, boostHeld = false;
   let gen = 0, failed = false;
@@ -95,14 +95,14 @@ export function mountSlitherDemo(root, options = {}) {
   const snapSnake = (s) => ({ alive: s.alive, body: s.alive ? s.body.slice() : [], mass: s.mass,
     heading: s.heading, boosting: s.boosting });
   const snapshot = () => ({ t: simTick * tickMs, snakes: game.snakes.map(snapSnake) });
-  const followed = () => (mode === "play" && game.snakes[HUMAN].alive ? HUMAN : follow);
+  const followed = () => (mode === "play" && (shown ?? game).snakes[HUMAN].alive ? HUMAN : follow);
   const name = (k) => (mode === "play" && k === HUMAN ? "You" : NAMES[k % NAMES.length]);
 
-  function biggest() {
+  function biggest(g = game) {
     let best = -1;
-    game.snakes.forEach((s, k) => {
+    g.snakes.forEach((s, k) => {
       if (!s.alive) return;
-      if (best < 0 || s.mass > game.snakes[best].mass) best = k;
+      if (best < 0 || s.mass > g.snakes[best].mass) best = k;
     });
     return Math.max(best, 0);
   }
@@ -116,6 +116,8 @@ export function mountSlitherDemo(root, options = {}) {
     snaps = [snapshot()];
     plan = Array.from({ length: SLOTS }, () => ({ turn: 0, boost: false }));
     follow = mode === "play" ? HUMAN : biggest();
+    pendingDeath = null;
+    shown = null;
     you = mode === "play" ? { kills: 0, ticks: 0 } : null;
     camera = null;
     if (session) hideOverlay();
@@ -172,7 +174,6 @@ export function mountSlitherDemo(root, options = {}) {
     }
     simTick++;
     snaps.push(snapshot());
-    if (!game.snakes[follow]?.alive) follow = biggest();
     return true;
   }
 
@@ -180,8 +181,9 @@ export function mountSlitherDemo(root, options = {}) {
     const s = game.snakes[HUMAN];
     s.enabled = false; // you respawn only when you ask to
     const secs = Math.round(you.ticks / cfg.tick_hz);
-    showOverlay(`You reached mass ${Math.round(s.mass)}`, `${you.kills} kill${you.kills === 1 ? "" : "s"} · ${secs}s alive`,
-      { label: "Play again", run: respawnYou });
+    // shown once the render clock reaches this tick, so the death is seen before the overlay
+    pendingDeath = { t: simTick * tickMs, gen,
+      title: `You reached mass ${Math.round(s.mass)}`, sub: `${you.kills} kill${you.kills === 1 ? "" : "s"} · ${secs}s alive` };
   }
 
   function respawnYou() {
@@ -190,6 +192,7 @@ export function mountSlitherDemo(root, options = {}) {
     respawnSlot(game, HUMAN, randomU(SLOTS, cfg), cfg);
     snaps[snaps.length - 1].snakes[HUMAN] = snapSnake(s);
     you = { kills: 0, ticks: 0 };
+    pendingDeath = null;
     hideOverlay();
   }
 
@@ -197,26 +200,49 @@ export function mountSlitherDemo(root, options = {}) {
   // some ticks slow, but the render clock only reads finished states, so drawing stays smooth.
   async function advance() {
     let n = 0;
-    while (simTick * tickMs < rt + LEAD_TICKS * tickMs && n < MAX_CATCH_UP * speed) {
+    while (simTick * tickMs < rt + LEAD_TICKS * tickMs * Math.max(1, speed) && n < MAX_CATCH_UP * speed) {
       if (!(await tick())) break;
       n++;
     }
   }
 
-  // The arena at render time `rt`: the two bracketing tick states, blended. Head and tail
-  // are interpolated (the body in between moves rigidly one point per tick).
+  // The arena at render time `rt`: the two bracketing tick states, blended. A tick can add
+  // one or two head points (boost) and drop several tail points, so head and tail are moved
+  // along the path they actually travelled (points are immutable arrays: `===` finds them).
   function interpolated() {
     while (snaps.length > 2 && snaps[1].t <= rt) snaps.shift();
     const A = snaps[0], B = snaps[snaps.length > 1 ? 1 : 0];
     const f = B.t > A.t ? Math.max(0, Math.min(1, (rt - A.t) / (B.t - A.t))) : 1;
-    const lerp = (p, q) => [p[0] + (q[0] - p[0]) * f, p[1] + (q[1] - p[1]) * f];
+    const mixPt = (p, q, t) => [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t];
     return { food: game.food, snakes: B.snakes.map((sb, k) => {
       const sa = A.snakes[k];
-      if (!sb.alive || !sa.alive || sa === sb || sb.body.length < 2 || sa.body.length < 2) return sb;
-      const body = sb.body.slice();
-      body[0] = lerp(sa.body[0], sb.body[0]);
-      body[body.length - 1] = lerp(sa.body[sa.body.length - 1], sb.body[body.length - 1]);
-      return { ...sb, body };
+      if (sa === sb || !sb.alive || !sa.alive || sb.body.length < 2 || sa.body.length < 2) return sb;
+      const ab = sa.body, bb = sb.body, la = ab.length;
+      if (Math.hypot(bb[0][0] - ab[0][0], bb[0][1] - ab[0][1]) > 3) return sb; // respawned: don't glide
+      const dh = sb.heading - sa.heading;
+      const heading = sa.heading + Math.atan2(Math.sin(dh), Math.cos(dh)) * f;
+
+      // head: n new points were added in front of the old head ab[0]
+      let n = -1;
+      for (let i = 0; i < 4 && i < bb.length; i++) if (bb[i] === ab[0]) { n = i; break; }
+      let pts;
+      if (n < 0) pts = [mixPt(ab[0], bb[0], f), ...bb.slice(1)];
+      else if (n === 0) pts = bb.slice();
+      else {
+        const t = f * n, i = Math.min(Math.floor(t), n - 1);
+        pts = [mixPt(bb[n - i], bb[n - 1 - i], t - i), ...bb.slice(n - i)];
+      }
+
+      // tail: the last m points of the old body were dropped; slide along them
+      const last = bb[bb.length - 1];
+      let m = -1;
+      for (let d = 0; d < 8 && d < la; d++) if (ab[la - 1 - d] === last) { m = d; break; }
+      if (m < 0) pts[pts.length - 1] = mixPt(ab[la - 1], last, f);
+      else if (m > 0) {
+        const t = f * m, i = Math.min(Math.floor(t), m - 1);
+        pts.push(...ab.slice(la - m, la - 1 - i), mixPt(ab[la - 1 - i], ab[la - 2 - i], t - i));
+      }
+      return { ...sb, body: pts, heading };
     }) };
   }
 
@@ -224,6 +250,7 @@ export function mountSlitherDemo(root, options = {}) {
     requestAnimationFrame(frame); // first, so a drawing error can never stop the loop
     const dt = Math.min(now - last, 250);
     last = now;
+    if (!visible) return; // off-screen: skip all work
     const running = started && session && !paused && visible && !failed;
     if (running) {
       rt += dt * speed;
@@ -240,6 +267,11 @@ export function mountSlitherDemo(root, options = {}) {
     // never draw past the newest finished state (a slow device just plays slower)
     rt = Math.min(rt, snaps[snaps.length - 1].t);
     shown = interpolated();
+    if (!shown.snakes[follow]?.alive) follow = biggest(shown);
+    if (pendingDeath && rt >= pendingDeath.t) {
+      if (pendingDeath.gen === gen) showOverlay(pendingDeath.title, pendingDeath.sub, { label: "Play again", run: respawnYou });
+      pendingDeath = null;
+    }
     camera = drawArena(ctx, shown, cfg, {
       dt, follow: followed(), human: mode === "play" ? HUMAN : -1, theme, dpr,
     }, camera);
