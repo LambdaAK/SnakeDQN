@@ -164,3 +164,89 @@ def respawn(snap, k, u, cfg):
     body = [[x - i * cos_h, y - i * sin_h] for i in range(target_length(cfg.start_mass, cfg))]
     snakes[k].update(body=body, heading=h, mass=cfg.start_mass, alive=True, boosting=False,
                      boost_ticks=0, respawn=0)
+
+
+def observe(snap, k, cfg):
+    """The spec §3 observation of snake k, as a list of floats (zeros if it is dead)."""
+    K, V = cfg.sectors, cfg.vision
+    width = 2.0 * math.pi / K
+    out = [0.0] * (K * 8 + 7)
+    snakes = snap["snakes"]
+    me = snakes[k]
+    if not me["alive"]:
+        return out
+    hx, hy = me["body"][0]
+    h = me["heading"]
+    c, sn = math.cos(h), math.sin(h)
+    radius = [body_radius(s["mass"], cfg) for s in snakes]
+
+    def close(d):
+        return min(max(1.0 - d / V, 0.0), 1.0)
+
+    def sector(rx, ry):
+        x = rx * c + ry * sn
+        y = ry * c - rx * sn
+        return math.floor((math.atan2(y, x) + math.pi) / width) % K
+
+    for q in range(K):
+        th = h + (-math.pi + (q + 0.5) * width)
+        dx, dy = math.cos(th), math.sin(th)
+        b = hx * dx + hy * dy
+        cc = hx * hx + hy * hy - cfg.arena_radius * cfg.arena_radius
+        out[q * 8] = close(-b + math.sqrt(max(b * b - cc, 0.0)))
+
+    for j, other in enumerate(snakes):
+        if not other["alive"]:
+            continue
+        for idx, (px, py) in enumerate(other["body"]):
+            if j == k and idx < cfg.neck:
+                continue
+            rx, ry = px - hx, py - hy
+            v = close(math.sqrt(rx * rx + ry * ry) - radius[j])
+            if v <= 0:
+                continue
+            q = sector(rx, ry)
+            if j == k:
+                out[q * 8 + 3] = max(out[q * 8 + 3], v)
+            else:
+                out[q * 8 + 1] = max(out[q * 8 + 1], v)
+                out[q * 8 + 2] = max(out[q * 8 + 2], radius[j] / 15.0)
+
+    food = [0.0] * K
+    for item in snap["food"]:
+        if item is None:
+            continue
+        rx, ry = item[0] - hx, item[1] - hy
+        if math.sqrt(rx * rx + ry * ry) < V:
+            food[sector(rx, ry)] += item[2]
+    for q in range(K):
+        out[q * 8 + 4] = min(food[q] / 10.0, 1.0)
+
+    for j, other in enumerate(snakes):
+        if j == k or not other["alive"]:
+            continue
+        ox, oy = other["body"][0]
+        rx, ry = ox - hx, oy - hy
+        v = close(math.sqrt(rx * rx + ry * ry) - radius[j])
+        if v <= 0:
+            continue
+        q = sector(rx, ry)
+        if v > out[q * 8 + 5]:
+            out[q * 8 + 5] = v
+            out[q * 8 + 6] = math.cos(other["heading"] - h)
+            out[q * 8 + 7] = math.sin(other["heading"] - h)
+
+    base = K * 8
+    out[base] = math.log(me["mass"]) / math.log(cfg.max_mass)
+    out[base + 1] = radius[k] / 15.0
+    out[base + 2] = 1.0 if me["boosting"] else 0.0
+    out[base + 3] = 1.0 if me["mass"] >= cfg.boost_min_mass else 0.0
+    dist = math.sqrt(hx * hx + hy * hy)
+    out[base + 4] = dist / cfg.arena_radius
+    if dist > 1e-9:
+        bx, by = -hx / dist, -hy / dist
+        out[base + 5] = bx * c + by * sn
+        out[base + 6] = by * c - bx * sn
+    else:
+        out[base + 5] = 1.0
+    return out
